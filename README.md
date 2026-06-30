@@ -1,5 +1,10 @@
 # 🩺 MediPredict
 
+[![CI](https://github.com/thecodebasedot/MediPredict/actions/workflows/ci.yml/badge.svg)](https://github.com/thecodebasedot/MediPredict/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+![XGBoost](https://img.shields.io/badge/model-XGBoost-success)
+![License](https://img.shields.io/badge/license-see%20LICENSE-lightgrey)
+
 **XGBoost ভিত্তিক মাল্টি-ডিজিজ রোগের সম্ভাবনা পূর্বাভাস সিস্টেম** — একটি এন্ড-টু-এন্ড মেশিন লার্নিং প্রজেক্ট যা রোগীর স্বাস্থ্য সূচক (গ্লুকোজ, বিএমআই, রক্তচাপ ইত্যাদি) নিয়ে **ডায়াবেটিস, হৃদরোগ ও উচ্চ রক্তচাপের** সম্ভাবনা পূর্বাভাস দেয়।
 
 | | |
@@ -11,6 +16,18 @@
 | **ইন্টারফেস** | CLI + Flask ওয়েব অ্যাপ (বাংলা/English, ডার্ক মোড) |
 
 > ⚠️ **দ্রষ্টব্য:** এই প্রজেক্টটি শিক্ষামূলক ডেমো। মডেলগুলো চিকিৎসাগতভাবে যুক্তিসঙ্গত নিয়মে তৈরি **সিনথেটিক ডেটায়** প্রশিক্ষিত। এটি প্রকৃত চিকিৎসা নির্ণয় বা পরামর্শের বিকল্প নয়।
+
+---
+
+## 📊 মডেল পারফরম্যান্স
+
+| রোগ | Accuracy | ROC-AUC | Brier Score |
+|---|---|---|---|
+| ডায়াবেটিস (Diabetes) | 0.887 | 0.957 | 0.082 |
+| হৃদরোগ (Heart Disease) | 0.870 | 0.944 | 0.093 |
+| উচ্চ রক্তচাপ (Hypertension) | 0.863 | 0.940 | 0.097 |
+
+> প্রতিটি রোগের জন্য আলাদা XGBoost মডেল · ৬,০০০ নমুনার সিনথেটিক ডেটাসেট · ৮০/২০ ট্রেন-টেস্ট স্প্লিট। (Brier score যত কম তত ভালো ক্যালিব্রেশন।)
 
 ---
 
@@ -76,16 +93,19 @@ MediPredict/
 │   ├── assistant.py     # AI স্বাস্থ্য সহকারী (Claude API)
 │   └── predict.py       # পূর্বাভাস (CLI + প্রোগ্রাম্যাটিক + ব্যাচ + মাল্টি + CI)
 ├── app/
-│   ├── app.py           # Flask ওয়েব অ্যাপ
+│   ├── app.py           # Flask ওয়েব অ্যাপ (১১টি API এন্ডপয়েন্ট)
 │   └── templates/
-│       └── index.html   # বাংলা/English UI, ডার্ক মোড
+│       └── index.html   # বাংলা/English UI, ডার্ক মোড, What-If সিমুলেটর
 ├── tests/
-│   └── test_pipeline.py # টেস্ট
+│   └── test_pipeline.py # ৯টি pytest টেস্ট
+├── .github/workflows/
+│   └── ci.yml           # GitHub Actions CI (Python 3.10–3.12)
 ├── data/                # ডেটাসেট (অটো-জেনারেটেড) + sample_batch.csv
 ├── models/              # প্রশিক্ষিত মডেল (অটো-জেনারেটেড)
 ├── docs/                # স্ক্রিনশট ও চার্ট
 ├── Dockerfile
-├── requirements.txt
+├── requirements.txt         # মূল নির্ভরতা
+├── requirements-extra.txt   # ঐচ্ছিক: shap, anthropic
 └── README.md
 ```
 
