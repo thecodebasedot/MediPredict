@@ -18,6 +18,8 @@ import pandas as pd
 from xgboost import XGBClassifier
 
 from . import config
+from .explain import explain_prediction
+from .recommend import get_recommendations
 
 
 class MediPredictor:
@@ -37,21 +39,46 @@ class MediPredictor:
             with open(metadata_path, encoding="utf-8") as f:
                 self.metadata = json.load(f)
 
-    def predict(self, features: dict) -> dict:
-        """ফিচার ডিকশনারি নিয়ে সম্ভাবনা ও ঝুঁকি স্তর রিটার্ন করে।"""
+    def predict(self, features: dict, explain: bool = False) -> dict:
+        """ফিচার ডিকশনারি নিয়ে সম্ভাবনা ও ঝুঁকি স্তর রিটার্ন করে।
+
+        explain=True হলে ফিচার অবদান ও স্বাস্থ্য পরামর্শও যুক্ত হয়।
+        """
         row = {name: float(features[name]) for name in config.FEATURE_NAMES}
         X = pd.DataFrame([row], columns=config.FEATURE_NAMES)
 
         probability = float(self.model.predict_proba(X)[0, 1])
         prediction = int(probability >= 0.5)
 
-        return {
+        result = {
             "probability": round(probability, 4),
             "probability_percent": round(probability * 100, 1),
             "prediction": prediction,
             "risk_level": self._risk_level(probability),
             "label": "ঝুঁকিপূর্ণ" if prediction == 1 else "সুস্থ",
         }
+
+        if explain:
+            result["explanation"] = explain_prediction(self.model, row)
+            result["recommendations"] = get_recommendations(row)
+
+        return result
+
+    def predict_batch(self, df: pd.DataFrame) -> pd.DataFrame:
+        """একাধিক রোগীর DataFrame নিয়ে প্রতিটির জন্য পূর্বাভাস রিটার্ন করে।"""
+        missing = [c for c in config.FEATURE_NAMES if c not in df.columns]
+        if missing:
+            raise ValueError(f"অনুপস্থিত কলাম: {', '.join(missing)}")
+
+        X = df[config.FEATURE_NAMES].astype(float)
+        proba = self.model.predict_proba(X)[:, 1]
+
+        out = df.copy()
+        out["probability"] = proba.round(4)
+        out["probability_percent"] = (proba * 100).round(1)
+        out["prediction"] = (proba >= 0.5).astype(int)
+        out["risk_level"] = [self._risk_level(p) for p in proba]
+        return out
 
     @staticmethod
     def _risk_level(prob: float) -> str:
@@ -87,11 +114,21 @@ def _interactive() -> None:
             except ValueError:
                 print("  ⚠️  অনুগ্রহ করে একটি সংখ্যা দিন।")
 
-    result = predictor.predict(features)
+    result = predictor.predict(features, explain=True)
     print("\n--- ফলাফল ---")
     print(f"রোগের সম্ভাবনা : {result['probability_percent']}%")
     print(f"ঝুঁকি স্তর      : {result['risk_level']}")
     print(f"পূর্বাভাস       : {result['label']}")
+
+    print("\n--- প্রধান প্রভাবক ফ্যাক্টর ---")
+    for item in result["explanation"]:
+        sign = "▲" if item["contribution"] > 0 else "▼"
+        print(f"  {sign} {item['label']} ({item['value']}) — ঝুঁকি {item['direction']}")
+
+    print("\n--- স্বাস্থ্য পরামর্শ ---")
+    for tip in result["recommendations"]:
+        print(f"  {tip}")
+
     print("\n⚠️  দ্রষ্টব্য: এটি কেবল একটি ML ডেমো; প্রকৃত চিকিৎসা পরামর্শের বিকল্প নয়।")
 
 
