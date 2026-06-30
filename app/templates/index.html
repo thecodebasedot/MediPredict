@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediPredict — রোগের সম্ভাবনা পূর্বাভাস</title>
+    <style>
+        :root {
+            --primary: #0d9488;
+            --primary-dark: #0f766e;
+            --bg: #f0fdfa;
+            --card: #ffffff;
+            --text: #134e4a;
+            --muted: #64748b;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', 'Noto Sans Bengali', system-ui, sans-serif;
+            background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 24px;
+        }
+        .container { max-width: 760px; margin: 0 auto; }
+        header { text-align: center; margin-bottom: 28px; }
+        header h1 { font-size: 2rem; color: var(--primary-dark); }
+        header p { color: var(--muted); margin-top: 6px; }
+        .badge {
+            display: inline-block; background: var(--primary); color: #fff;
+            font-size: .75rem; padding: 3px 10px; border-radius: 999px; margin-top: 8px;
+        }
+        .card {
+            background: var(--card); border-radius: 16px; padding: 28px;
+            box-shadow: 0 10px 30px rgba(13,148,136,.12);
+        }
+        .grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+        .field label { display: block; font-size: .85rem; margin-bottom: 6px; font-weight: 600; }
+        .field input {
+            width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1;
+            border-radius: 10px; font-size: 1rem; transition: border-color .2s;
+        }
+        .field input:focus { outline: none; border-color: var(--primary); }
+        button {
+            width: 100%; margin-top: 22px; padding: 14px; border: none;
+            background: var(--primary); color: #fff; font-size: 1.05rem; font-weight: 700;
+            border-radius: 12px; cursor: pointer; transition: background .2s;
+        }
+        button:hover { background: var(--primary-dark); }
+        button:disabled { opacity: .6; cursor: not-allowed; }
+        #result { margin-top: 22px; display: none; }
+        .result-box {
+            border-radius: 14px; padding: 22px; text-align: center; color: #fff;
+        }
+        .result-box h2 { font-size: 2.4rem; margin-bottom: 4px; }
+        .result-box .level { font-size: 1.1rem; font-weight: 600; }
+        .bar { height: 14px; background: rgba(255,255,255,.35); border-radius: 99px; margin-top: 14px; overflow: hidden; }
+        .bar > span { display: block; height: 100%; background: #fff; border-radius: 99px; transition: width .6s; }
+        .disclaimer { font-size: .8rem; color: var(--muted); text-align: center; margin-top: 18px; line-height: 1.6; }
+        footer { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 24px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🩺 MediPredict</h1>
+            <p>মেশিন লার্নিং দিয়ে রোগের সম্ভাবনা পূর্বাভাস</p>
+            <span class="badge">XGBoost মডেল</span>
+        </header>
+
+        <div class="card">
+            <form id="predict-form">
+                <div class="grid">
+                    {% for f in features %}
+                    <div class="field">
+                        <label for="{{ f.name }}">{{ f.label }}</label>
+                        <input type="number" step="any" id="{{ f.name }}" name="{{ f.name }}"
+                               value="{{ f.default }}" min="{{ f.min }}" max="{{ f.max }}" required>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="submit" id="submit-btn">সম্ভাবনা নির্ণয় করুন</button>
+            </form>
+
+            <div id="result">
+                <div class="result-box" id="result-box">
+                    <div class="level" id="risk-level"></div>
+                    <h2 id="probability"></h2>
+                    <div id="label"></div>
+                    <div class="bar"><span id="bar-fill"></span></div>
+                </div>
+            </div>
+
+            <p class="disclaimer">
+                ⚠️ এই টুলটি কেবল একটি মেশিন লার্নিং ডেমো এবং সিনথেটিক ডেটায় প্রশিক্ষিত।
+                এটি প্রকৃত চিকিৎসা নির্ণয় বা পরামর্শের বিকল্প নয়। স্বাস্থ্য সংক্রান্ত
+                সিদ্ধান্তের জন্য সর্বদা একজন যোগ্য চিকিৎসকের পরামর্শ নিন।
+            </p>
+        </div>
+
+        <footer>MediPredict v1.0 · XGBoost · রোগের সম্ভাবনা পূর্বাভাস</footer>
+    </div>
+
+    <script>
+        const form = document.getElementById('predict-form');
+        const resultDiv = document.getElementById('result');
+        const resultBox = document.getElementById('result-box');
+        const btn = document.getElementById('submit-btn');
+
+        function colorFor(prob) {
+            if (prob < 0.25) return '#16a34a';
+            if (prob < 0.50) return '#ca8a04';
+            if (prob < 0.75) return '#ea580c';
+            return '#dc2626';
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.textContent = 'বিশ্লেষণ হচ্ছে...';
+
+            const payload = {};
+            new FormData(form).forEach((v, k) => payload[k] = parseFloat(v));
+
+            try {
+                const res = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'ত্রুটি ঘটেছে');
+
+                resultBox.style.background = colorFor(data.probability);
+                document.getElementById('risk-level').textContent = data.risk_level;
+                document.getElementById('probability').textContent = data.probability_percent + '%';
+                document.getElementById('label').textContent = 'পূর্বাভাস: ' + data.label;
+                document.getElementById('bar-fill').style.width = data.probability_percent + '%';
+                resultDiv.style.display = 'block';
+                resultDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'সম্ভাবনা নির্ণয় করুন';
+            }
+        });
+    </script>
+</body>
+</html>
