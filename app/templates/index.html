@@ -145,6 +145,7 @@
                 <div class="result-box" id="result-box">
                     <div class="level" id="risk-level"></div>
                     <h2 id="probability"></h2>
+                    <div id="ci" style="font-size:.8rem; opacity:.9;"></div>
                     <div id="label"></div>
                     <div class="bar"><span id="bar-fill"></span></div>
                 </div>
@@ -159,9 +160,25 @@
                     <div id="factors"></div>
                 </div>
 
+                <div class="panel" id="action-panel" style="display:none;">
+                    <h3 data-i18n="action_title">🎯 ঝুঁকি কমানোর অ্যাকশন প্ল্যান</h3>
+                    <p class="hist-meta" id="action-summary"></p>
+                    <div id="action-steps"></div>
+                </div>
+
                 <div class="panel">
                     <h3 data-i18n="tips_title">💡 স্বাস্থ্য পরামর্শ</h3>
                     <ul class="tips" id="tips"></ul>
+                </div>
+
+                <div class="panel" id="assistant-panel">
+                    <h3 data-i18n="assistant_title">🤖 AI স্বাস্থ্য সহকারী</h3>
+                    <div id="assistant-chat"></div>
+                    <div id="assistant-note" class="hist-meta" style="display:none;"></div>
+                    <div id="assistant-input-row" style="display:flex; gap:8px; margin-top:10px;">
+                        <input type="text" id="assistant-q" style="flex:1; padding:10px; border:1.5px solid var(--input-border); border-radius:10px; background:var(--input-bg); color:var(--text);">
+                        <button id="assistant-send" onclick="askAssistant()" style="width:auto; margin:0; padding:10px 18px;" data-i18n="assistant_send">পাঠান</button>
+                    </div>
                 </div>
 
                 <button id="print-btn" onclick="window.print()" data-i18n="print_btn">📄 রিপোর্ট ডাউনলোড / প্রিন্ট (PDF)</button>
@@ -203,6 +220,12 @@
                 history_title: "📜 প্রেডিকশন হিস্টোরি",
                 clear_history: "মুছুন",
                 no_history: "কোনো হিস্টোরি নেই।",
+                action_title: "🎯 ঝুঁকি কমানোর অ্যাকশন প্ল্যান",
+                assistant_title: "🤖 AI স্বাস্থ্য সহকারী",
+                assistant_send: "পাঠান",
+                assistant_ph: "যেমন: আমার ঝুঁকি কেন বেশি? কী করতে পারি?",
+                assistant_thinking: "ভাবছে...",
+                assistant_off: "ℹ️ AI সহকারী চালু করতে পরিবেশে ANTHROPIC_API_KEY সেট করুন।",
             },
             en: {
                 subtitle: "Disease risk prediction with machine learning",
@@ -219,6 +242,12 @@
                 history_title: "📜 Prediction History",
                 clear_history: "Clear",
                 no_history: "No history yet.",
+                action_title: "🎯 Risk Reduction Action Plan",
+                assistant_title: "🤖 AI Health Assistant",
+                assistant_send: "Send",
+                assistant_ph: "e.g. Why is my risk high? What can I do?",
+                assistant_thinking: "Thinking...",
+                assistant_off: "ℹ️ Set ANTHROPIC_API_KEY in the environment to enable the AI assistant.",
             }
         };
         let lang = 'bn';
@@ -233,6 +262,10 @@
                 el.textContent = el.getAttribute(lang === 'bn' ? 'data-bn' : 'data-en');
             });
             document.getElementById('lang-btn').textContent = lang === 'bn' ? 'English' : 'বাংলা';
+            const qbox = document.getElementById('assistant-q');
+            if (qbox) qbox.placeholder = I18N[lang].assistant_ph;
+            const note = document.getElementById('assistant-note');
+            if (note && note.style.display !== 'none') note.textContent = I18N[lang].assistant_off;
             if (lastData) renderResult(lastData);  // ভাষা বদলালে ফলাফল পুনঃরেন্ডার
         }
         function toggleLang() { lang = (lang === 'bn') ? 'en' : 'bn'; applyLang(); }
@@ -273,6 +306,14 @@
             document.getElementById('label').textContent = dname + ' — ' + t.prediction + dlabel;
             document.getElementById('bar-fill').style.width = data.probability_percent + '%';
 
+            // confidence interval (থাকলে)
+            const ciEl = document.getElementById('ci');
+            if (data.confidence_interval_percent) {
+                const [lo, hi] = data.confidence_interval_percent;
+                ciEl.textContent = (lang === 'bn' ? '৮০% আস্থা ব্যবধান: ' : '80% CI: ') +
+                    `${lo}%–${hi}% (±${data.uncertainty_percent}%)`;
+            } else { ciEl.textContent = ''; }
+
             // সারাংশ
             const sum = document.getElementById('summary');
             sum.innerHTML = '';
@@ -311,6 +352,29 @@
                 li.textContent = lang === 'bn' ? tip.bn : tip.en;
                 ul.appendChild(li);
             });
+
+            // অ্যাকশন প্ল্যান (counterfactual)
+            const ap = document.getElementById('action-panel');
+            if (data.action_plan && data.action_plan.steps.length) {
+                const plan = data.action_plan;
+                ap.style.display = 'block';
+                const arrow = lang === 'bn'
+                    ? `ঝুঁকি ${plan.start_probability_percent}% → ${plan.end_probability_percent}% (মোট ${plan.total_drop_percent}% হ্রাস)`
+                    : `Risk ${plan.start_probability_percent}% → ${plan.end_probability_percent}% (total ${plan.total_drop_percent}% drop)`;
+                document.getElementById('action-summary').textContent = arrow;
+                const box = document.getElementById('action-steps');
+                box.innerHTML = '';
+                plan.steps.forEach((s, i) => {
+                    const lbl = lang === 'bn' ? s.label : s.label_en;
+                    const row = document.createElement('div');
+                    row.className = 'summary-row';
+                    row.innerHTML = `<span>${i + 1}. ${lbl}: <strong>${s.from} → ${s.to}</strong></span>` +
+                        `<span class="pill" style="background:#16a34a">−${s.risk_drop_percent}%</span>`;
+                    box.appendChild(row);
+                });
+            } else {
+                ap.style.display = 'none';
+            }
         }
 
         // ---------------- সাবমিট ----------------
@@ -386,7 +450,50 @@
             loadHistory();
         }
 
+        // ---------------- AI সহকারী ----------------
+        let assistantOn = false;
+        fetch('/api/assistant/status').then(r => r.json()).then(s => {
+            assistantOn = s.available;
+            const note = document.getElementById('assistant-note');
+            const row = document.getElementById('assistant-input-row');
+            if (!assistantOn) {
+                note.style.display = 'block';
+                note.textContent = I18N[lang].assistant_off;
+                row.style.display = 'none';
+            }
+        }).catch(() => {});
+
+        async function askAssistant() {
+            const input = document.getElementById('assistant-q');
+            const q = input.value.trim();
+            if (!q) return;
+            const chat = document.getElementById('assistant-chat');
+            const btn = document.getElementById('assistant-send');
+            chat.innerHTML += `<div style="margin:8px 0;"><strong>🧑 ${q}</strong></div>`;
+            input.value = '';
+            btn.disabled = true; btn.textContent = I18N[lang].assistant_thinking;
+            try {
+                const res = await fetch('/api/assistant', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question: q, context: lastData }),
+                });
+                const data = await res.json();
+                const msg = res.ok ? data.answer : '⚠️ ' + (data.error || 'Error');
+                chat.innerHTML += `<div style="margin:8px 0; color:var(--muted);">🤖 ${msg}</div>`;
+            } catch (err) {
+                chat.innerHTML += `<div style="margin:8px 0; color:#dc2626;">⚠️ ${err.message}</div>`;
+            } finally {
+                btn.disabled = false; btn.textContent = I18N[lang].assistant_send;
+                chat.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function applyAssistantPlaceholder() {
+            document.getElementById('assistant-q').placeholder = I18N[lang].assistant_ph;
+        }
+
         applyLang();
+        applyAssistantPlaceholder();
     </script>
 </body>
 </html>

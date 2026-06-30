@@ -18,6 +18,7 @@ from flask import Flask, jsonify, render_template, request
 # প্যাকেজ ইম্পোর্ট নিশ্চিত করতে প্রজেক্ট রুট পাথে যোগ করা হয়
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src import assistant  # noqa: E402
 from src import config  # noqa: E402
 from src import history  # noqa: E402
 from src.predict import get_predictor  # noqa: E402
@@ -137,6 +138,28 @@ def api_batch():
         return jsonify({"error": str(exc)}), 400
 
     return jsonify({"count": int(out.shape[0]), "results": out.to_dict(orient="records")})
+
+
+@app.route("/api/assistant/status")
+def assistant_status():
+    """AI সহকারী ব্যবহারযোগ্য কিনা।"""
+    return jsonify({"available": assistant.is_available()})
+
+
+@app.route("/api/assistant", methods=["POST"])
+def api_assistant():
+    """AI স্বাস্থ্য সহকারীকে প্রশ্ন করা।"""
+    data = request.get_json(silent=True) or {}
+    question = (data.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "প্রশ্ন খালি হতে পারে না।"}), 400
+    try:
+        answer = assistant.ask(question, context=data.get("context"))
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 503
+    except Exception as exc:  # noqa: BLE001 — যেকোনো API ত্রুটি বন্ধুত্বপূর্ণভাবে রিটার্ন
+        return jsonify({"error": f"সহকারী ত্রুটি: {exc}"}), 502
+    return jsonify({"answer": answer})
 
 
 @app.route("/api/health")

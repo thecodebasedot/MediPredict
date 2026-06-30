@@ -1,0 +1,7 @@
+# ঐচ্ছিক ফিচারের নির্ভরতা (মূল requirements.txt ছাড়াও ইনস্টল করুন)
+#   - shap      : SHAP ভিজ্যুয়ালাইজেশন (python -m src.shap_explain)
+#   - anthropic : AI স্বাস্থ্য সহকারী (/api/assistant; ANTHROPIC_API_KEY দরকার)
+#
+# ইনস্টল: pip install -r requirements-extra.txt
+shap>=0.44.0
+anthropic>=0.40.0

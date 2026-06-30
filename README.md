@@ -20,30 +20,40 @@
 |---|---|
 | ![Light](docs/screenshot_result.png) | ![Dark](docs/screenshot_dark_en.png) |
 
-**What-If সিমুলেটর ও প্রেডিকশন হিস্টোরি:**
+**Counterfactual অ্যাকশন প্ল্যান, কনফিডেন্স ইন্টারভ্যাল ও AI সহকারী:**
 
-![What-If + History](docs/screenshot_history.png)
+![Action plan + CI + Assistant](docs/screenshot_v4.png)
 
-### মডেল তুলনা
-![Model Comparison](docs/model_comparison.png)
+### SHAP ব্যাখ্যাযোগ্যতা (ডায়াবেটিস)
+| Beeswarm Summary | Waterfall (একক রোগী) |
+|---|---|
+| ![SHAP beeswarm](docs/shap_diabetes.png) | ![SHAP waterfall](docs/shap_waterfall_diabetes.png) |
+
+### মডেল তুলনা ও ক্যালিব্রেশন
+| Model Comparison | Calibration Curve |
+|---|---|
+| ![Model Comparison](docs/model_comparison.png) | ![Calibration](docs/calibration.png) |
 
 ---
 
 ## ✨ ফিচার
 
+### 🚀 সুপার-অ্যাডভান্সড
+- 🎯 **Counterfactual অ্যাকশন প্ল্যান** — ঝুঁকি কমাতে সর্বনিম্ন কী কী বদলাতে হবে তার ক্রমানুসারে তালিকা (greedy অপ্টিমাইজেশন)
+- 🔬 **পূর্ণ SHAP ভিজ্যুয়ালাইজেশন** — beeswarm summary ও waterfall প্লট
+- 🤖 **AI স্বাস্থ্য সহকারী** — Claude API দিয়ে প্রশ্নোত্তর (বাংলা/English; `ANTHROPIC_API_KEY` দরকার)
+- 📉 **প্রোবাবিলিটি ক্যালিব্রেশন + কনফিডেন্স ইন্টারভ্যাল** — bootstrap ensemble দিয়ে অনিশ্চয়তা পরিমাপ + reliability curve
+
+### মূল ফিচার
 - 🩺 **মাল্টি-ডিজিজ** — ডায়াবেটিস, হৃদরোগ ও উচ্চ রক্তচাপের আলাদা XGBoost মডেল
 - 🎚️ **What-If সিমুলেটর** — স্লাইডার টানলে রিয়েল-টাইমে ঝুঁকি আপডেট (লাইভ মোড)
 - 📜 **প্রেডিকশন হিস্টোরি** — SQLite-এ সংরক্ষণ ও পুনরুদ্ধার
 - 🔧 **হাইপারপ্যারামিটার টিউনিং** — RandomizedSearchCV দিয়ে সেরা প্যারামিটার
 - ⚙️ **GitHub Actions CI** — push/PR-এ স্বয়ংক্রিয় টেস্ট (Python 3.10–3.12)
-- 🔍 **ব্যাখ্যাযোগ্যতা** — কোন ফ্যাক্টর প্রেডিকশনে কতটা অবদান রাখল (SHAP-স্টাইল)
-- 💡 **দ্বিভাষিক স্বাস্থ্য পরামর্শ** — ইনপুট অনুযায়ী বাংলা/English পরামর্শ
+- 💡 **দ্বিভাষিক স্বাস্থ্য পরামর্শ** ও 🔍 **ফিচার অবদান ব্যাখ্যা**
 - 📈 **মডেল তুলনা** — XGBoost বনাম Random Forest বনাম Logistic Regression (চার্ট সহ)
-- 📁 **ব্যাচ প্রেডিকশন** — CSV আপলোডে একসাথে অনেক রোগীর পূর্বাভাস
-- 🌓 **ডার্ক মোড + ভাষা টগল** (বাংলা ⇄ English)
-- 📄 **PDF রিপোর্ট** — ব্রাউজার প্রিন্ট দিয়ে ফলাফল সেভ
-- 📊 চিকিৎসাগত নিয়মভিত্তিক সিনথেটিক ডেটাসেট জেনারেটর
-- 🌐 Flask ওয়েব অ্যাপ ও JSON API · 💻 CLI · 🐳 Docker · ✅ pytest
+- 📁 **ব্যাচ প্রেডিকশন** (CSV) · 🌓 **ডার্ক মোড + ভাষা টগল** · 📄 **PDF রিপোর্ট**
+- 🌐 Flask ওয়েব অ্যাপ ও JSON API · 💻 CLI · 🐳 Docker · ✅ pytest (৯ টেস্ট)
 
 ---
 
@@ -60,7 +70,11 @@ MediPredict/
 │   ├── compare.py       # মডেল তুলনা + চার্ট
 │   ├── tune.py          # হাইপারপ্যারামিটার টিউনিং (RandomizedSearchCV)
 │   ├── history.py       # প্রেডিকশন হিস্টোরি (SQLite)
-│   └── predict.py       # পূর্বাভাস (CLI + প্রোগ্রাম্যাটিক + ব্যাচ + মাল্টি)
+│   ├── counterfactual.py# ঝুঁকি কমানোর অ্যাকশন প্ল্যান
+│   ├── calibrate.py     # ক্যালিব্রেশন + bootstrap অনিশ্চয়তা ensemble
+│   ├── shap_explain.py  # SHAP beeswarm + waterfall প্লট
+│   ├── assistant.py     # AI স্বাস্থ্য সহকারী (Claude API)
+│   └── predict.py       # পূর্বাভাস (CLI + প্রোগ্রাম্যাটিক + ব্যাচ + মাল্টি + CI)
 ├── app/
 │   ├── app.py           # Flask ওয়েব অ্যাপ
 │   └── templates/
@@ -85,15 +99,20 @@ MediPredict/
 git clone https://github.com/thecodebasedot/medipredict.git
 cd medipredict
 pip install -r requirements.txt
+pip install -r requirements-extra.txt   # ঐচ্ছিক: SHAP প্লট + AI সহকারী
 ```
 
 ### ২. মডেল প্রশিক্ষণ
 
 ```bash
-python -m src.train       # ৩টি রোগের মডেল প্রশিক্ষণ
-python -m src.compare     # (ঐচ্ছিক) মডেল তুলনা + চার্ট
-python -m src.tune heart  # (ঐচ্ছিক) হাইপারপ্যারামিটার টিউনিং
+python -m src.train            # ৩টি রোগের মডেল প্রশিক্ষণ
+python -m src.calibrate        # (ঐচ্ছিক) ক্যালিব্রেশন + অনিশ্চয়তা ensemble
+python -m src.compare          # (ঐচ্ছিক) মডেল তুলনা + চার্ট
+python -m src.tune heart       # (ঐচ্ছিক) হাইপারপ্যারামিটার টিউনিং
+python -m src.shap_explain     # (ঐচ্ছিক) SHAP প্লট তৈরি
 ```
+
+> **AI সহকারী চালু করতে:** `export ANTHROPIC_API_KEY=sk-...` (ঐচ্ছিকভাবে `MEDIPREDICT_MODEL`)।
 
 ### ৩. পূর্বাভাস (CLI)
 
@@ -122,7 +141,11 @@ python -m app.app
 | `/api/comparison` | GET | মডেল তুলনার ফলাফল |
 | `/api/history` | GET | সর্বশেষ পূর্বাভাসের হিস্টোরি (`?limit=N`) |
 | `/api/history/clear` | POST | হিস্টোরি মুছে ফেলা |
+| `/api/assistant/status` | GET | AI সহকারী ব্যবহারযোগ্য কিনা |
+| `/api/assistant` | POST | AI সহকারীকে প্রশ্ন (`{question, context}`) |
 | `/api/health` | GET | সার্ভার স্ট্যাটাস |
+
+> `/api/predict` রেসপন্সে ঝুঁকিপূর্ণ হলে `action_plan` (counterfactual) এবং ensemble থাকলে `confidence_interval_percent` ও `uncertainty_percent` যুক্ত হয়।
 
 `POST /api/predict`
 

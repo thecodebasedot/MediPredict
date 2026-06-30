@@ -98,6 +98,41 @@ def test_history(tmp_path, monkeypatch):
     assert history.get_history() == []
 
 
+def test_counterfactual():
+    """অ্যাকশন প্ল্যান উচ্চ-ঝুঁকি কেসে ঝুঁকি কমায় ও বৈধ ধাপ দেয়।"""
+    from sklearn.model_selection import train_test_split
+    from xgboost import XGBClassifier
+    from src.counterfactual import suggest_action_plan, MODIFIABLE
+
+    df = generate_dataset(n_samples=1500)
+    X, y = df[config.FEATURE_NAMES], df[config.DEFAULT_DISEASE]
+    X_tr, _, y_tr, _ = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = XGBClassifier(n_estimators=60, max_depth=3, random_state=42)
+    model.fit(X_tr, y_tr)
+
+    risky = {"age": 60, "glucose": 200, "blood_pressure": 150, "bmi": 38,
+             "cholesterol": 280, "insulin": 200, "heart_rate": 100,
+             "smoking": 1, "physical_activity": 1, "family_history": 1}
+    plan = suggest_action_plan(model, risky)
+    assert plan["end_probability_percent"] <= plan["start_probability_percent"]
+    # অপরিবর্তনযোগ্য ফিচার (age, family_history) প্ল্যানে থাকবে না
+    for step in plan["steps"]:
+        assert step["feature"] in MODIFIABLE
+
+
+def test_assistant_offline():
+    """API key ছাড়া সহকারীর আচরণ (নেটওয়ার্ক ছাড়াই)।"""
+    from src import assistant
+
+    msgs = assistant.build_messages("why?", {"disease": "diabetes", "probability_percent": 80})
+    assert msgs[0]["role"] == "user"
+    assert "diabetes" in assistant.build_context_text({"disease": "diabetes"}).lower()
+    # খালি প্রশ্নে ValueError
+    import pytest
+    with pytest.raises(ValueError):
+        assistant.ask("")
+
+
 def test_disease_config():
     """রোগ কনফিগ ও ওজনের বৈধতা।"""
     assert config.DEFAULT_DISEASE in config.DISEASES
