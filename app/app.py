@@ -1,4 +1,4 @@
-"""MediPredict — Flask ওয়েব অ্যাপ্লিকেশন।
+"""MediPredict — Flask ওয়েব অ্যাপ্লিকেশন (মাল্টি-ডিজিজ)।
 
 ব্যবহার:
     python -m app.app
@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import io
+import json
 import sys
 from pathlib import Path
 
@@ -23,19 +24,36 @@ from src.predict import get_predictor  # noqa: E402
 app = Flask(__name__)
 
 
+def _read_features(data: dict) -> dict:
+    """ইনপুট ডিকশনারি থেকে ফিচার বের করে (অনুপস্থিত হলে ডিফল্ট)।"""
+    features = {}
+    for f in config.FEATURES:
+        features[f["name"]] = float(data.get(f["name"], f["default"]))
+    return features
+
+
 @app.route("/")
 def index():
-    return render_template("index.html", features=config.FEATURES)
+    return render_template("index.html", features=config.FEATURES, diseases=config.DISEASES)
+
+
+@app.route("/api/diseases")
+def diseases():
+    """সমর্থিত রোগের তালিকা।"""
+    return jsonify([
+        {"key": k, "name_bn": v["name_bn"], "name_en": v["name_en"]}
+        for k, v in config.DISEASES.items()
+    ])
 
 
 @app.route("/api/predict", methods=["POST"])
 def api_predict():
     data = request.get_json(silent=True) or {}
+    disease = data.get("disease", config.DEFAULT_DISEASE)
+    if disease not in config.DISEASES:
+        return jsonify({"error": f"অজানা রোগ: {disease}"}), 400
     try:
-        features = {}
-        for f in config.FEATURES:
-            value = data.get(f["name"], f["default"])
-            features[f["name"]] = float(value)
+        features = _read_features(data)
     except (TypeError, ValueError):
         return jsonify({"error": "অবৈধ ইনপুট। সব মান সংখ্যা হতে হবে।"}), 400
 
@@ -44,13 +62,14 @@ def api_predict():
     except FileNotFoundError as exc:
         return jsonify({"error": str(exc)}), 503
 
-    result = predictor.predict(features, explain=True)
+    result = predictor.predict(features, disease=disease, explain=True)
+    result["all_diseases"] = predictor.predict_all(features)
     return jsonify(result)
 
 
 @app.route("/api/model-info")
 def model_info():
-    """মডেলের মেট্রিক ও ফিচার গুরুত্ব রিটার্ন করে।"""
+    """সব রোগের মডেল মেট্রিক ও ফিচার গুরুত্ব।"""
     try:
         predictor = get_predictor()
     except FileNotFoundError as exc:
@@ -58,11 +77,24 @@ def model_info():
     return jsonify(predictor.metadata)
 
 
+@app.route("/api/comparison")
+def comparison():
+    """মডেল তুলনার ফলাফল (যদি তৈরি থাকে)।"""
+    if not config.COMPARISON_PATH.exists():
+        return jsonify({"error": "তুলনা পাওয়া যায়নি। চালান: python -m src.compare"}), 404
+    with open(config.COMPARISON_PATH, encoding="utf-8") as f:
+        return jsonify(json.load(f))
+
+
 @app.route("/api/batch", methods=["POST"])
 def api_batch():
-    """CSV আপলোড নিয়ে একাধিক রোগীর পূর্বাভাস রিটার্ন করে।"""
+    """CSV আপলোড নিয়ে একাধিক রোগীর পূর্বাভাস।"""
     if "file" not in request.files:
         return jsonify({"error": "কোনো ফাইল আপলোড করা হয়নি।"}), 400
+    disease = request.form.get("disease", config.DEFAULT_DISEASE)
+    if disease not in config.DISEASES:
+        return jsonify({"error": f"অজানা রোগ: {disease}"}), 400
+
     file = request.files["file"]
     try:
         df = pd.read_csv(io.StringIO(file.stream.read().decode("utf-8")))
@@ -75,21 +107,16 @@ def api_batch():
         return jsonify({"error": str(exc)}), 503
 
     try:
-        out = predictor.predict_batch(df)
+        out = predictor.predict_batch(df, disease=disease)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    return jsonify(
-        {
-            "count": int(out.shape[0]),
-            "results": out.to_dict(orient="records"),
-        }
-    )
+    return jsonify({"count": int(out.shape[0]), "results": out.to_dict(orient="records")})
 
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "version": "1.0.0"})
+    return jsonify({"status": "ok", "version": "2.0.0"})
 
 
 if __name__ == "__main__":
