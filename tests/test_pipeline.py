@@ -77,6 +77,27 @@ def test_risk_levels():
     assert MediPredictor._risk_level(0.9, "en") == "Very High Risk"
 
 
+def test_history(tmp_path, monkeypatch):
+    """হিস্টোরি সংরক্ষণ ও পুনরুদ্ধার টেস্ট।"""
+    from src import history
+
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "test_history.db")
+    history.clear_history()
+
+    result = {"disease": "diabetes", "disease_name": "ডায়াবেটিস",
+              "probability_percent": 87.5, "risk_level": "উচ্চ ঝুঁকি"}
+    rid = history.save_prediction(result, {"glucose": 180})
+    assert rid > 0
+
+    hist = history.get_history(limit=5)
+    assert len(hist) == 1
+    assert hist[0]["disease"] == "diabetes"
+    assert hist[0]["features"]["glucose"] == 180
+
+    assert history.clear_history() == 1
+    assert history.get_history() == []
+
+
 def test_disease_config():
     """রোগ কনফিগ ও ওজনের বৈধতা।"""
     assert config.DEFAULT_DISEASE in config.DISEASES

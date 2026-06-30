@@ -20,6 +20,10 @@
 |---|---|
 | ![Light](docs/screenshot_result.png) | ![Dark](docs/screenshot_dark_en.png) |
 
+**What-If সিমুলেটর ও প্রেডিকশন হিস্টোরি:**
+
+![What-If + History](docs/screenshot_history.png)
+
 ### মডেল তুলনা
 ![Model Comparison](docs/model_comparison.png)
 
@@ -28,18 +32,18 @@
 ## ✨ ফিচার
 
 - 🩺 **মাল্টি-ডিজিজ** — ডায়াবেটিস, হৃদরোগ ও উচ্চ রক্তচাপের আলাদা XGBoost মডেল
-- 📊 চিকিৎসাগত নিয়মভিত্তিক সিনথেটিক ডেটাসেট জেনারেটর
-- 🤖 XGBoost ক্লাসিফায়ার (~৮৬–৮৯% accuracy, ~০.৯৪–০.৯৬ ROC-AUC)
+- 🎚️ **What-If সিমুলেটর** — স্লাইডার টানলে রিয়েল-টাইমে ঝুঁকি আপডেট (লাইভ মোড)
+- 📜 **প্রেডিকশন হিস্টোরি** — SQLite-এ সংরক্ষণ ও পুনরুদ্ধার
+- 🔧 **হাইপারপ্যারামিটার টিউনিং** — RandomizedSearchCV দিয়ে সেরা প্যারামিটার
+- ⚙️ **GitHub Actions CI** — push/PR-এ স্বয়ংক্রিয় টেস্ট (Python 3.10–3.12)
 - 🔍 **ব্যাখ্যাযোগ্যতা** — কোন ফ্যাক্টর প্রেডিকশনে কতটা অবদান রাখল (SHAP-স্টাইল)
 - 💡 **দ্বিভাষিক স্বাস্থ্য পরামর্শ** — ইনপুট অনুযায়ী বাংলা/English পরামর্শ
 - 📈 **মডেল তুলনা** — XGBoost বনাম Random Forest বনাম Logistic Regression (চার্ট সহ)
 - 📁 **ব্যাচ প্রেডিকশন** — CSV আপলোডে একসাথে অনেক রোগীর পূর্বাভাস
 - 🌓 **ডার্ক মোড + ভাষা টগল** (বাংলা ⇄ English)
 - 📄 **PDF রিপোর্ট** — ব্রাউজার প্রিন্ট দিয়ে ফলাফল সেভ
-- 🌐 Flask ওয়েব অ্যাপ ও JSON API
-- 💻 ইন্টারঅ্যাক্টিভ CLI প্রেডিকশন
-- 🐳 Docker সাপোর্ট
-- ✅ pytest টেস্ট স্যুট
+- 📊 চিকিৎসাগত নিয়মভিত্তিক সিনথেটিক ডেটাসেট জেনারেটর
+- 🌐 Flask ওয়েব অ্যাপ ও JSON API · 💻 CLI · 🐳 Docker · ✅ pytest
 
 ---
 
@@ -54,6 +58,8 @@ MediPredict/
 │   ├── explain.py       # প্রেডিকশন ব্যাখ্যা (ফিচার অবদান)
 │   ├── recommend.py     # দ্বিভাষিক স্বাস্থ্য পরামর্শ
 │   ├── compare.py       # মডেল তুলনা + চার্ট
+│   ├── tune.py          # হাইপারপ্যারামিটার টিউনিং (RandomizedSearchCV)
+│   ├── history.py       # প্রেডিকশন হিস্টোরি (SQLite)
 │   └── predict.py       # পূর্বাভাস (CLI + প্রোগ্রাম্যাটিক + ব্যাচ + মাল্টি)
 ├── app/
 │   ├── app.py           # Flask ওয়েব অ্যাপ
@@ -86,6 +92,7 @@ pip install -r requirements.txt
 ```bash
 python -m src.train       # ৩টি রোগের মডেল প্রশিক্ষণ
 python -m src.compare     # (ঐচ্ছিক) মডেল তুলনা + চার্ট
+python -m src.tune heart  # (ঐচ্ছিক) হাইপারপ্যারামিটার টিউনিং
 ```
 
 ### ৩. পূর্বাভাস (CLI)
@@ -113,6 +120,8 @@ python -m app.app
 | `/api/diseases` | GET | সমর্থিত রোগের তালিকা |
 | `/api/model-info` | GET | সব রোগের মডেল মেট্রিক ও ফিচার গুরুত্ব |
 | `/api/comparison` | GET | মডেল তুলনার ফলাফল |
+| `/api/history` | GET | সর্বশেষ পূর্বাভাসের হিস্টোরি (`?limit=N`) |
+| `/api/history/clear` | POST | হিস্টোরি মুছে ফেলা |
 | `/api/health` | GET | সার্ভার স্ট্যাটাস |
 
 `POST /api/predict`

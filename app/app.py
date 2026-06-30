@@ -19,6 +19,7 @@ from flask import Flask, jsonify, render_template, request
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src import config  # noqa: E402
+from src import history  # noqa: E402
 from src.predict import get_predictor  # noqa: E402
 
 app = Flask(__name__)
@@ -64,7 +65,31 @@ def api_predict():
 
     result = predictor.predict(features, disease=disease, explain=True)
     result["all_diseases"] = predictor.predict_all(features)
+
+    # হিস্টোরিতে সংরক্ষণ (ব্যর্থ হলে পূর্বাভাস তবু রিটার্ন হয়)
+    try:
+        history.save_prediction(result, features)
+    except Exception:
+        pass
+
     return jsonify(result)
+
+
+@app.route("/api/history")
+def api_history():
+    """সর্বশেষ পূর্বাভাসের হিস্টোরি।"""
+    try:
+        limit = min(int(request.args.get("limit", 20)), 100)
+    except ValueError:
+        limit = 20
+    return jsonify(history.get_history(limit))
+
+
+@app.route("/api/history/clear", methods=["POST"])
+def api_history_clear():
+    """সব হিস্টোরি মুছে ফেলে।"""
+    deleted = history.clear_history()
+    return jsonify({"deleted": deleted})
 
 
 @app.route("/api/model-info")
@@ -116,7 +141,7 @@ def api_batch():
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "version": "2.0.0"})
+    return jsonify({"status": "ok", "version": "3.0.0"})
 
 
 if __name__ == "__main__":

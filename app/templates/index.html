@@ -71,6 +71,12 @@
         .summary-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:.9rem; }
         .summary-row:last-child { border-bottom:none; }
         .pill { padding:3px 10px; border-radius:99px; color:#fff; font-size:.8rem; font-weight:600; }
+        .live-toggle { display:flex; align-items:center; gap:8px; font-size:.85rem; margin-bottom:16px; cursor:pointer; color:var(--muted); }
+        .live-toggle input { width:auto; }
+        .slider { width:100%; margin-top:8px; accent-color:var(--primary); cursor:pointer; }
+        .hist-row { display:flex; justify-content:space-between; align-items:center; padding:9px 0; border-bottom:1px solid var(--border); font-size:.85rem; }
+        .hist-row:last-child { border-bottom:none; }
+        .hist-meta { color:var(--muted); font-size:.75rem; }
         .factor { margin-bottom: 10px; }
         .factor-head { display: flex; justify-content: space-between; font-size: .85rem; margin-bottom: 4px; }
         .factor-bar { height: 8px; border-radius: 99px; background: var(--border); overflow: hidden; }
@@ -92,6 +98,7 @@
 <body>
     <div class="container">
         <div class="topbar">
+            <button id="history-btn" onclick="toggleHistory()">📜</button>
             <button id="lang-btn" onclick="toggleLang()">English</button>
             <button id="theme-btn" onclick="toggleTheme()">🌙</button>
         </div>
@@ -114,12 +121,20 @@
                     </select>
                 </div>
 
+                <label class="live-toggle">
+                    <input type="checkbox" id="live-mode">
+                    <span data-i18n="live_mode">🎚️ লাইভ মোড — স্লাইডার টানলে সাথে সাথে ঝুঁকি আপডেট</span>
+                </label>
+
                 <div class="grid">
                     {% for f in features %}
                     <div class="field">
                         <label for="{{ f.name }}" data-bn="{{ f.label }}" data-en="{{ f.label_en }}">{{ f.label }}</label>
                         <input type="number" step="any" id="{{ f.name }}" name="{{ f.name }}"
                                value="{{ f.default }}" min="{{ f.min }}" max="{{ f.max }}" required>
+                        <input type="range" class="slider" id="{{ f.name }}_range"
+                               value="{{ f.default }}" min="{{ f.min }}" max="{{ f.max }}"
+                               step="{% if f.max <= 1 %}1{% else %}any{% endif %}" data-target="{{ f.name }}">
                     </div>
                     {% endfor %}
                 </div>
@@ -159,7 +174,15 @@
             </p>
         </div>
 
-        <footer>MediPredict v2.0 · XGBoost · Multi-Disease Risk Prediction</footer>
+        <div class="card" id="history-card" style="display:none; margin-top:18px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 style="color:var(--primary-dark);" data-i18n="history_title">📜 প্রেডিকশন হিস্টোরি</h3>
+                <button onclick="clearHistory()" style="width:auto; margin:0; padding:6px 12px; font-size:.8rem; background:#dc2626;" data-i18n="clear_history">মুছুন</button>
+            </div>
+            <div id="history-list" style="margin-top:12px;"></div>
+        </div>
+
+        <footer>MediPredict v3.0 · XGBoost · Multi-Disease · What-If · History</footer>
     </div>
 
     <script>
@@ -176,6 +199,10 @@
                 disclaimer: "⚠️ এই টুলটি কেবল একটি মেশিন লার্নিং ডেমো এবং সিনথেটিক ডেটায় প্রশিক্ষিত। এটি প্রকৃত চিকিৎসা নির্ণয় বা পরামর্শের বিকল্প নয়। স্বাস্থ্য সংক্রান্ত সিদ্ধান্তের জন্য সর্বদা একজন যোগ্য চিকিৎসকের পরামর্শ নিন।",
                 analyzing: "বিশ্লেষণ হচ্ছে...",
                 prediction: "পূর্বাভাস: ",
+                live_mode: "🎚️ লাইভ মোড — স্লাইডার টানলে সাথে সাথে ঝুঁকি আপডেট",
+                history_title: "📜 প্রেডিকশন হিস্টোরি",
+                clear_history: "মুছুন",
+                no_history: "কোনো হিস্টোরি নেই।",
             },
             en: {
                 subtitle: "Disease risk prediction with machine learning",
@@ -188,6 +215,10 @@
                 disclaimer: "⚠️ This tool is only a machine-learning demo trained on synthetic data. It is NOT a substitute for real medical diagnosis or advice. Always consult a qualified doctor for health decisions.",
                 analyzing: "Analyzing...",
                 prediction: "Prediction: ",
+                live_mode: "🎚️ Live mode — update risk instantly as you drag sliders",
+                history_title: "📜 Prediction History",
+                clear_history: "Clear",
+                no_history: "No history yet.",
             }
         };
         let lang = 'bn';
@@ -287,14 +318,9 @@
         const btn = document.getElementById('submit-btn');
         const resultDiv = document.getElementById('result');
 
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            btn.disabled = true;
-            btn.textContent = I18N[lang].analyzing;
-
+        async function runPrediction(scroll) {
             const payload = { disease: document.getElementById('disease').value };
             new FormData(form).forEach((v, k) => payload[k] = parseFloat(v));
-
             try {
                 const res = await fetch('/api/predict', {
                     method: 'POST',
@@ -306,14 +332,59 @@
                 lastData = data;
                 renderResult(data);
                 resultDiv.style.display = 'block';
-                resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } catch (err) {
-                alert(err.message);
-            } finally {
-                btn.disabled = false;
-                btn.textContent = I18N[lang].predict_btn;
-            }
+                if (scroll) resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (err) { if (scroll) alert(err.message); }
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.textContent = I18N[lang].analyzing;
+            await runPrediction(true);
+            btn.disabled = false;
+            btn.textContent = I18N[lang].predict_btn;
         });
+
+        // ---------------- স্লাইডার সিঙ্ক + লাইভ মোড ----------------
+        let liveTimer = null;
+        function liveUpdate() {
+            if (!document.getElementById('live-mode').checked) return;
+            clearTimeout(liveTimer);
+            liveTimer = setTimeout(() => runPrediction(false), 150);
+        }
+        document.querySelectorAll('.slider').forEach(slider => {
+            const target = document.getElementById(slider.dataset.target);
+            slider.addEventListener('input', () => { target.value = slider.value; liveUpdate(); });
+            target.addEventListener('input', () => { slider.value = target.value; liveUpdate(); });
+        });
+        document.getElementById('disease').addEventListener('change', liveUpdate);
+
+        // ---------------- হিস্টোরি ----------------
+        function toggleHistory() {
+            const card = document.getElementById('history-card');
+            const show = card.style.display === 'none';
+            card.style.display = show ? 'block' : 'none';
+            if (show) loadHistory();
+        }
+        async function loadHistory() {
+            const list = document.getElementById('history-list');
+            const data = await (await fetch('/api/history?limit=20')).json();
+            if (!data.length) { list.innerHTML = `<p class="hist-meta">${I18N[lang].no_history}</p>`; return; }
+            list.innerHTML = '';
+            data.forEach(h => {
+                const row = document.createElement('div');
+                row.className = 'hist-row';
+                const when = new Date(h.timestamp).toLocaleString();
+                row.innerHTML = `<span>${h.disease_name} — <strong>${h.probability_percent}%</strong> ` +
+                    `<span class="pill" style="background:${colorFor(h.probability_percent/100)}">${h.risk_level}</span></span>` +
+                    `<span class="hist-meta">${when}</span>`;
+                list.appendChild(row);
+            });
+        }
+        async function clearHistory() {
+            await fetch('/api/history/clear', { method: 'POST' });
+            loadHistory();
+        }
 
         applyLang();
     </script>
