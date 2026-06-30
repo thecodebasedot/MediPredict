@@ -1,4 +1,4 @@
-"""প্রশিক্ষিত XGBoost মডেল দিয়ে রোগের সম্ভাবনা পূর্বাভাস।
+"""প্রশিক্ষিত XGBoost মডেল দিয়ে মাল্টি-ডিজিজ রোগের সম্ভাবনা পূর্বাভাস।
 
 ব্যবহার (CLI, ইন্টারঅ্যাক্টিভ):
     python -m src.predict
@@ -6,7 +6,8 @@
 প্রোগ্রাম্যাটিক:
     from src.predict import MediPredictor
     predictor = MediPredictor()
-    result = predictor.predict({"age": 55, "glucose": 160, ...})
+    result = predictor.predict({"age": 55, "glucose": 160, ...}, disease="diabetes")
+    summary = predictor.predict_all({"age": 55, ...})
 """
 
 from __future__ import annotations
@@ -23,73 +24,93 @@ from .recommend import get_recommendations
 
 
 class MediPredictor:
-    """মডেল লোড করে এবং একক রোগীর জন্য পূর্বাভাস দেয়।"""
+    """প্রতিটি রোগের মডেল লোড করে এবং পূর্বাভাস দেয়।"""
 
-    def __init__(self, model_path=config.MODEL_PATH, metadata_path=config.METADATA_PATH):
-        if not model_path.exists():
+    def __init__(self):
+        self.models: dict[str, XGBClassifier] = {}
+        missing = []
+        for disease in config.DISEASE_KEYS:
+            path = config.model_path(disease)
+            if not path.exists():
+                missing.append(disease)
+                continue
+            model = XGBClassifier()
+            model.load_model(path)
+            self.models[disease] = model
+
+        if missing:
             raise FileNotFoundError(
-                f"মডেল পাওয়া যায়নি: {model_path}\n"
+                f"মডেল পাওয়া যায়নি: {', '.join(missing)}\n"
                 "প্রথমে প্রশিক্ষণ দিন: python -m src.train"
             )
-        self.model = XGBClassifier()
-        self.model.load_model(model_path)
 
         self.metadata = {}
-        if metadata_path.exists():
-            with open(metadata_path, encoding="utf-8") as f:
+        if config.METADATA_PATH.exists():
+            with open(config.METADATA_PATH, encoding="utf-8") as f:
                 self.metadata = json.load(f)
 
-    def predict(self, features: dict, explain: bool = False) -> dict:
-        """ফিচার ডিকশনারি নিয়ে সম্ভাবনা ও ঝুঁকি স্তর রিটার্ন করে।
+    # ------------------------------------------------------------------
+    def predict(self, features: dict, disease: str = config.DEFAULT_DISEASE,
+                explain: bool = False) -> dict:
+        """একটি নির্দিষ্ট রোগের জন্য সম্ভাবনা, ঝুঁকি স্তর ও (ঐচ্ছিক) ব্যাখ্যা।"""
+        if disease not in self.models:
+            raise ValueError(f"অজানা রোগ: {disease}")
 
-        explain=True হলে ফিচার অবদান ও স্বাস্থ্য পরামর্শও যুক্ত হয়।
-        """
         row = {name: float(features[name]) for name in config.FEATURE_NAMES}
         X = pd.DataFrame([row], columns=config.FEATURE_NAMES)
 
-        probability = float(self.model.predict_proba(X)[0, 1])
+        probability = float(self.models[disease].predict_proba(X)[0, 1])
         prediction = int(probability >= 0.5)
+        meta = config.DISEASES[disease]
 
         result = {
+            "disease": disease,
+            "disease_name": meta["name_bn"],
+            "disease_name_en": meta["name_en"],
             "probability": round(probability, 4),
             "probability_percent": round(probability * 100, 1),
             "prediction": prediction,
-            "risk_level": self._risk_level(probability),
+            "risk_level": self._risk_level(probability, "bn"),
+            "risk_level_en": self._risk_level(probability, "en"),
             "label": "ঝুঁকিপূর্ণ" if prediction == 1 else "সুস্থ",
+            "label_en": "At Risk" if prediction == 1 else "Healthy",
         }
 
         if explain:
-            result["explanation"] = explain_prediction(self.model, row)
+            result["explanation"] = explain_prediction(self.models[disease], row)
             result["recommendations"] = get_recommendations(row)
 
         return result
 
-    def predict_batch(self, df: pd.DataFrame) -> pd.DataFrame:
-        """একাধিক রোগীর DataFrame নিয়ে প্রতিটির জন্য পূর্বাভাস রিটার্ন করে।"""
+    def predict_all(self, features: dict) -> list[dict]:
+        """সব রোগের জন্য সংক্ষিপ্ত পূর্বাভাস সারাংশ।"""
+        return [self.predict(features, disease=d) for d in config.DISEASE_KEYS]
+
+    def predict_batch(self, df: pd.DataFrame, disease: str = config.DEFAULT_DISEASE) -> pd.DataFrame:
+        """একাধিক রোগীর DataFrame নিয়ে নির্দিষ্ট রোগের পূর্বাভাস।"""
+        if disease not in self.models:
+            raise ValueError(f"অজানা রোগ: {disease}")
         missing = [c for c in config.FEATURE_NAMES if c not in df.columns]
         if missing:
             raise ValueError(f"অনুপস্থিত কলাম: {', '.join(missing)}")
 
         X = df[config.FEATURE_NAMES].astype(float)
-        proba = self.model.predict_proba(X)[:, 1]
+        proba = self.models[disease].predict_proba(X)[:, 1]
 
         out = df.copy()
         out["probability"] = proba.round(4)
         out["probability_percent"] = (proba * 100).round(1)
         out["prediction"] = (proba >= 0.5).astype(int)
-        out["risk_level"] = [self._risk_level(p) for p in proba]
+        out["risk_level"] = [self._risk_level(p, "bn") for p in proba]
         return out
 
     @staticmethod
-    def _risk_level(prob: float) -> str:
-        """সম্ভাবনাকে বাংলা ঝুঁকি স্তরে রূপান্তর করে।"""
-        if prob < 0.25:
-            return "নিম্ন ঝুঁকি"
-        if prob < 0.50:
-            return "মাঝারি ঝুঁকি"
-        if prob < 0.75:
-            return "উচ্চ ঝুঁকি"
-        return "অতি উচ্চ ঝুঁকি"
+    def _risk_level(prob: float, lang: str = "bn") -> str:
+        """সম্ভাবনাকে ঝুঁকি স্তরে রূপান্তর করে (bn/en)।"""
+        for level in config.RISK_LEVELS:
+            if prob < level["max"]:
+                return level[lang]
+        return config.RISK_LEVELS[-1][lang]
 
 
 @lru_cache(maxsize=1)
@@ -100,7 +121,8 @@ def get_predictor() -> MediPredictor:
 
 def _interactive() -> None:
     predictor = get_predictor()
-    print("=== MediPredict — রোগের সম্ভাবনা পূর্বাভাস ===\n")
+    print("=== MediPredict — মাল্টি-ডিজিজ রোগের সম্ভাবনা পূর্বাভাস ===\n")
+
     features = {}
     for f in config.FEATURES:
         while True:
@@ -114,20 +136,20 @@ def _interactive() -> None:
             except ValueError:
                 print("  ⚠️  অনুগ্রহ করে একটি সংখ্যা দিন।")
 
-    result = predictor.predict(features, explain=True)
-    print("\n--- ফলাফল ---")
-    print(f"রোগের সম্ভাবনা : {result['probability_percent']}%")
-    print(f"ঝুঁকি স্তর      : {result['risk_level']}")
-    print(f"পূর্বাভাস       : {result['label']}")
+    print("\n--- সব রোগের সারাংশ ---")
+    for r in predictor.predict_all(features):
+        print(f"  {r['disease_name']:12s}: {r['probability_percent']:5.1f}%  ({r['risk_level']})")
 
-    print("\n--- প্রধান প্রভাবক ফ্যাক্টর ---")
-    for item in result["explanation"]:
+    # ডিফল্ট রোগের বিস্তারিত ব্যাখ্যা
+    detail = predictor.predict(features, explain=True)
+    print(f"\n--- {detail['disease_name']} — প্রধান প্রভাবক ফ্যাক্টর ---")
+    for item in detail["explanation"]:
         sign = "▲" if item["contribution"] > 0 else "▼"
         print(f"  {sign} {item['label']} ({item['value']}) — ঝুঁকি {item['direction']}")
 
     print("\n--- স্বাস্থ্য পরামর্শ ---")
-    for tip in result["recommendations"]:
-        print(f"  {tip}")
+    for tip in detail["recommendations"]:
+        print(f"  {tip['bn']}")
 
     print("\n⚠️  দ্রষ্টব্য: এটি কেবল একটি ML ডেমো; প্রকৃত চিকিৎসা পরামর্শের বিকল্প নয়।")
 

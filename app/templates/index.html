@@ -6,43 +6,53 @@
     <title>MediPredict — রোগের সম্ভাবনা পূর্বাভাস</title>
     <style>
         :root {
-            --primary: #0d9488;
-            --primary-dark: #0f766e;
-            --bg: #f0fdfa;
-            --card: #ffffff;
-            --text: #134e4a;
-            --muted: #64748b;
+            --primary: #0d9488; --primary-dark: #0f766e;
+            --bg1: #f0fdfa; --bg2: #ccfbf1; --card: #ffffff;
+            --text: #134e4a; --muted: #64748b; --panel: #f8fafc; --border: #e2e8f0;
+            --input-bg: #ffffff; --input-border: #cbd5e1;
+        }
+        html[data-theme="dark"] {
+            --bg1: #0f172a; --bg2: #134e4a; --card: #1e293b;
+            --text: #e2e8f0; --muted: #94a3b8; --panel: #0f172a; --border: #334155;
+            --input-bg: #0f172a; --input-border: #475569;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
             font-family: 'Segoe UI', 'Noto Sans Bengali', system-ui, sans-serif;
-            background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%);
-            color: var(--text);
-            min-height: 100vh;
-            padding: 24px;
+            background: linear-gradient(135deg, var(--bg1) 0%, var(--bg2) 100%);
+            color: var(--text); min-height: 100vh; padding: 24px; transition: background .3s;
         }
-        .container { max-width: 760px; margin: 0 auto; }
-        header { text-align: center; margin-bottom: 28px; }
+        .container { max-width: 780px; margin: 0 auto; }
+        .topbar { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+        .topbar button {
+            background: var(--card); color: var(--text); border: 1px solid var(--border);
+            border-radius: 8px; padding: 6px 12px; font-size: .8rem; cursor: pointer; width: auto;
+        }
+        header { text-align: center; margin-bottom: 22px; }
         header h1 { font-size: 2rem; color: var(--primary-dark); }
         header p { color: var(--muted); margin-top: 6px; }
         .badge {
             display: inline-block; background: var(--primary); color: #fff;
             font-size: .75rem; padding: 3px 10px; border-radius: 999px; margin-top: 8px;
         }
+        .model-info { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 10px; }
         .card {
             background: var(--card); border-radius: 16px; padding: 28px;
             box-shadow: 0 10px 30px rgba(13,148,136,.12);
         }
-        .grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 16px;
+        .disease-select { margin-bottom: 18px; }
+        .disease-select label { display:block; font-size:.85rem; font-weight:600; margin-bottom:6px; }
+        select {
+            width: 100%; padding: 11px 12px; border: 1.5px solid var(--input-border);
+            border-radius: 10px; font-size: 1rem; background: var(--input-bg); color: var(--text);
         }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
         .field label { display: block; font-size: .85rem; margin-bottom: 6px; font-weight: 600; }
         .field input {
-            width: 100%; padding: 10px 12px; border: 1.5px solid #cbd5e1;
-            border-radius: 10px; font-size: 1rem; transition: border-color .2s;
+            width: 100%; padding: 10px 12px; border: 1.5px solid var(--input-border);
+            border-radius: 10px; font-size: 1rem; background: var(--input-bg); color: var(--text);
         }
-        .field input:focus { outline: none; border-color: var(--primary); }
+        .field input:focus, select:focus { outline: none; border-color: var(--primary); }
         button {
             width: 100%; margin-top: 22px; padding: 14px; border: none;
             background: var(--primary); color: #fff; font-size: 1.05rem; font-weight: 700;
@@ -51,50 +61,69 @@
         button:hover { background: var(--primary-dark); }
         button:disabled { opacity: .6; cursor: not-allowed; }
         #result { margin-top: 22px; display: none; }
-        .result-box {
-            border-radius: 14px; padding: 22px; text-align: center; color: #fff;
-        }
+        .result-box { border-radius: 14px; padding: 22px; text-align: center; color: #fff; }
         .result-box h2 { font-size: 2.4rem; margin-bottom: 4px; }
         .result-box .level { font-size: 1.1rem; font-weight: 600; }
         .bar { height: 14px; background: rgba(255,255,255,.35); border-radius: 99px; margin-top: 14px; overflow: hidden; }
         .bar > span { display: block; height: 100%; background: #fff; border-radius: 99px; transition: width .6s; }
-        .panel { margin-top: 18px; background: #f8fafc; border-radius: 12px; padding: 18px; }
+        .panel { margin-top: 18px; background: var(--panel); border-radius: 12px; padding: 18px; }
         .panel h3 { font-size: 1rem; margin-bottom: 12px; color: var(--primary-dark); }
+        .summary-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:.9rem; }
+        .summary-row:last-child { border-bottom:none; }
+        .pill { padding:3px 10px; border-radius:99px; color:#fff; font-size:.8rem; font-weight:600; }
         .factor { margin-bottom: 10px; }
         .factor-head { display: flex; justify-content: space-between; font-size: .85rem; margin-bottom: 4px; }
-        .factor-bar { height: 8px; border-radius: 99px; background: #e2e8f0; overflow: hidden; }
+        .factor-bar { height: 8px; border-radius: 99px; background: var(--border); overflow: hidden; }
         .factor-bar > span { display: block; height: 100%; border-radius: 99px; }
         .factor-bar > span.up { background: #dc2626; }
         .factor-bar > span.down { background: #16a34a; }
         .tips { list-style: none; }
-        .tips li { font-size: .88rem; padding: 8px 0; border-bottom: 1px solid #e2e8f0; line-height: 1.5; }
+        .tips li { font-size: .88rem; padding: 8px 0; border-bottom: 1px solid var(--border); line-height: 1.5; }
         .tips li:last-child { border-bottom: none; }
         .disclaimer { font-size: .8rem; color: var(--muted); text-align: center; margin-top: 18px; line-height: 1.6; }
-        .model-info { text-align: center; font-size: .8rem; color: var(--muted); margin-top: 10px; }
         footer { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 24px; }
+        @media print {
+            body { background: #fff; padding: 0; }
+            .topbar, #predict-form, footer, #print-btn { display: none !important; }
+            .card { box-shadow: none; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="topbar">
+            <button id="lang-btn" onclick="toggleLang()">English</button>
+            <button id="theme-btn" onclick="toggleTheme()">🌙</button>
+        </div>
+
         <header>
             <h1>🩺 MediPredict</h1>
-            <p>মেশিন লার্নিং দিয়ে রোগের সম্ভাবনা পূর্বাভাস</p>
-            <span class="badge">XGBoost মডেল</span>
+            <p data-i18n="subtitle">মেশিন লার্নিং দিয়ে রোগের সম্ভাবনা পূর্বাভাস</p>
+            <span class="badge">XGBoost</span>
             <div class="model-info" id="model-info"></div>
         </header>
 
         <div class="card">
             <form id="predict-form">
+                <div class="disease-select">
+                    <label data-i18n="select_disease">রোগ নির্বাচন করুন</label>
+                    <select id="disease">
+                        {% for key, d in diseases.items() %}
+                        <option value="{{ key }}">{{ d.name_bn }} / {{ d.name_en }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
                 <div class="grid">
                     {% for f in features %}
                     <div class="field">
-                        <label for="{{ f.name }}">{{ f.label }}</label>
+                        <label for="{{ f.name }}" data-bn="{{ f.label }}" data-en="{{ f.label_en }}">{{ f.label }}</label>
                         <input type="number" step="any" id="{{ f.name }}" name="{{ f.name }}"
                                value="{{ f.default }}" min="{{ f.min }}" max="{{ f.max }}" required>
                     </div>
                     {% endfor %}
                 </div>
-                <button type="submit" id="submit-btn">সম্ভাবনা নির্ণয় করুন</button>
+                <button type="submit" id="submit-btn" data-i18n="predict_btn">সম্ভাবনা নির্ণয় করুন</button>
             </form>
 
             <div id="result">
@@ -105,33 +134,86 @@
                     <div class="bar"><span id="bar-fill"></span></div>
                 </div>
 
-                <div class="panel" id="factors-panel">
-                    <h3>🔍 প্রধান প্রভাবক ফ্যাক্টর</h3>
+                <div class="panel">
+                    <h3 data-i18n="all_diseases">📋 সব রোগের সারাংশ</h3>
+                    <div id="summary"></div>
+                </div>
+
+                <div class="panel">
+                    <h3 data-i18n="factors">🔍 প্রধান প্রভাবক ফ্যাক্টর</h3>
                     <div id="factors"></div>
                 </div>
 
-                <div class="panel" id="tips-panel">
-                    <h3>💡 স্বাস্থ্য পরামর্শ</h3>
+                <div class="panel">
+                    <h3 data-i18n="tips_title">💡 স্বাস্থ্য পরামর্শ</h3>
                     <ul class="tips" id="tips"></ul>
                 </div>
+
+                <button id="print-btn" onclick="window.print()" data-i18n="print_btn">📄 রিপোর্ট ডাউনলোড / প্রিন্ট (PDF)</button>
             </div>
 
-            <p class="disclaimer">
+            <p class="disclaimer" data-i18n="disclaimer">
                 ⚠️ এই টুলটি কেবল একটি মেশিন লার্নিং ডেমো এবং সিনথেটিক ডেটায় প্রশিক্ষিত।
                 এটি প্রকৃত চিকিৎসা নির্ণয় বা পরামর্শের বিকল্প নয়। স্বাস্থ্য সংক্রান্ত
                 সিদ্ধান্তের জন্য সর্বদা একজন যোগ্য চিকিৎসকের পরামর্শ নিন।
             </p>
         </div>
 
-        <footer>MediPredict v1.0 · XGBoost · রোগের সম্ভাবনা পূর্বাভাস</footer>
+        <footer>MediPredict v2.0 · XGBoost · Multi-Disease Risk Prediction</footer>
     </div>
 
     <script>
-        const form = document.getElementById('predict-form');
-        const resultDiv = document.getElementById('result');
-        const resultBox = document.getElementById('result-box');
-        const btn = document.getElementById('submit-btn');
+        // ---------------- ভাষা ও থিম ----------------
+        const I18N = {
+            bn: {
+                subtitle: "মেশিন লার্নিং দিয়ে রোগের সম্ভাবনা পূর্বাভাস",
+                select_disease: "রোগ নির্বাচন করুন",
+                predict_btn: "সম্ভাবনা নির্ণয় করুন",
+                all_diseases: "📋 সব রোগের সারাংশ",
+                factors: "🔍 প্রধান প্রভাবক ফ্যাক্টর",
+                tips_title: "💡 স্বাস্থ্য পরামর্শ",
+                print_btn: "📄 রিপোর্ট ডাউনলোড / প্রিন্ট (PDF)",
+                disclaimer: "⚠️ এই টুলটি কেবল একটি মেশিন লার্নিং ডেমো এবং সিনথেটিক ডেটায় প্রশিক্ষিত। এটি প্রকৃত চিকিৎসা নির্ণয় বা পরামর্শের বিকল্প নয়। স্বাস্থ্য সংক্রান্ত সিদ্ধান্তের জন্য সর্বদা একজন যোগ্য চিকিৎসকের পরামর্শ নিন।",
+                analyzing: "বিশ্লেষণ হচ্ছে...",
+                prediction: "পূর্বাভাস: ",
+            },
+            en: {
+                subtitle: "Disease risk prediction with machine learning",
+                select_disease: "Select Disease",
+                predict_btn: "Predict Risk",
+                all_diseases: "📋 All Diseases Summary",
+                factors: "🔍 Top Contributing Factors",
+                tips_title: "💡 Health Recommendations",
+                print_btn: "📄 Download / Print Report (PDF)",
+                disclaimer: "⚠️ This tool is only a machine-learning demo trained on synthetic data. It is NOT a substitute for real medical diagnosis or advice. Always consult a qualified doctor for health decisions.",
+                analyzing: "Analyzing...",
+                prediction: "Prediction: ",
+            }
+        };
+        let lang = 'bn';
+        let lastData = null;
 
+        function applyLang() {
+            document.documentElement.lang = lang;
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.textContent = I18N[lang][el.getAttribute('data-i18n')];
+            });
+            document.querySelectorAll('[data-bn]').forEach(el => {
+                el.textContent = el.getAttribute(lang === 'bn' ? 'data-bn' : 'data-en');
+            });
+            document.getElementById('lang-btn').textContent = lang === 'bn' ? 'English' : 'বাংলা';
+            if (lastData) renderResult(lastData);  // ভাষা বদলালে ফলাফল পুনঃরেন্ডার
+        }
+        function toggleLang() { lang = (lang === 'bn') ? 'en' : 'bn'; applyLang(); }
+
+        function toggleTheme() {
+            const html = document.documentElement;
+            const dark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', dark ? 'light' : 'dark');
+            document.getElementById('theme-btn').textContent = dark ? '🌙' : '☀️';
+        }
+
+        // ---------------- রঙ ----------------
         function colorFor(prob) {
             if (prob < 0.25) return '#16a34a';
             if (prob < 0.50) return '#ca8a04';
@@ -139,49 +221,78 @@
             return '#dc2626';
         }
 
-        // মডেলের মেট্রিক হেডারে দেখানো
+        // মডেলের মেট্রিক হেডারে
         fetch('/api/model-info').then(r => r.json()).then(m => {
-            if (m && m.metrics) {
-                const acc = (m.metrics.accuracy * 100).toFixed(1);
-                const auc = m.metrics.roc_auc.toFixed(3);
+            if (m && m.diseases) {
+                const accs = Object.values(m.diseases).map(d => d.accuracy * 100);
+                const avg = (accs.reduce((a,b)=>a+b,0)/accs.length).toFixed(1);
                 document.getElementById('model-info').textContent =
-                    `Accuracy: ${acc}% · ROC-AUC: ${auc}`;
+                    `${Object.keys(m.diseases).length} models · Avg Accuracy: ${avg}%`;
             }
         }).catch(() => {});
 
-        function renderFactors(explanation) {
+        // ---------------- রেন্ডার ----------------
+        function renderResult(data) {
+            const t = I18N[lang];
+            document.getElementById('result-box').style.background = colorFor(data.probability);
+            document.getElementById('risk-level').textContent = lang === 'bn' ? data.risk_level : data.risk_level_en;
+            document.getElementById('probability').textContent = data.probability_percent + '%';
+            const dname = lang === 'bn' ? data.disease_name : data.disease_name_en;
+            const dlabel = lang === 'bn' ? data.label : data.label_en;
+            document.getElementById('label').textContent = dname + ' — ' + t.prediction + dlabel;
+            document.getElementById('bar-fill').style.width = data.probability_percent + '%';
+
+            // সারাংশ
+            const sum = document.getElementById('summary');
+            sum.innerHTML = '';
+            data.all_diseases.forEach(d => {
+                const row = document.createElement('div');
+                row.className = 'summary-row';
+                const name = lang === 'bn' ? d.disease_name : d.disease_name_en;
+                const rl = lang === 'bn' ? d.risk_level : d.risk_level_en;
+                row.innerHTML = `<span>${name}</span>` +
+                    `<span><span class="pill" style="background:${colorFor(d.probability)}">${d.probability_percent}% · ${rl}</span></span>`;
+                sum.appendChild(row);
+            });
+
+            // ফ্যাক্টর
             const box = document.getElementById('factors');
             box.innerHTML = '';
-            const maxAbs = Math.max(...explanation.map(e => Math.abs(e.contribution)), 0.0001);
-            explanation.forEach(e => {
+            const maxAbs = Math.max(...data.explanation.map(e => Math.abs(e.contribution)), 0.0001);
+            data.explanation.forEach(e => {
                 const up = e.contribution > 0;
                 const width = (Math.abs(e.contribution) / maxAbs * 100).toFixed(0);
+                const lbl = lang === 'bn' ? e.label : e.label_en;
+                const dir = lang === 'bn' ? ('ঝুঁকি ' + e.direction) : ('risk ' + e.direction_en);
                 const div = document.createElement('div');
                 div.className = 'factor';
                 div.innerHTML =
-                    `<div class="factor-head"><span>${up ? '▲' : '▼'} ${e.label} (${e.value})</span>` +
-                    `<span>ঝুঁকি ${e.direction}</span></div>` +
+                    `<div class="factor-head"><span>${up ? '▲' : '▼'} ${lbl} (${e.value})</span><span>${dir}</span></div>` +
                     `<div class="factor-bar"><span class="${up ? 'up' : 'down'}" style="width:${width}%"></span></div>`;
                 box.appendChild(div);
             });
-        }
 
-        function renderTips(tips) {
+            // পরামর্শ
             const ul = document.getElementById('tips');
             ul.innerHTML = '';
-            tips.forEach(t => {
+            data.recommendations.forEach(tip => {
                 const li = document.createElement('li');
-                li.textContent = t;
+                li.textContent = lang === 'bn' ? tip.bn : tip.en;
                 ul.appendChild(li);
             });
         }
 
+        // ---------------- সাবমিট ----------------
+        const form = document.getElementById('predict-form');
+        const btn = document.getElementById('submit-btn');
+        const resultDiv = document.getElementById('result');
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             btn.disabled = true;
-            btn.textContent = 'বিশ্লেষণ হচ্ছে...';
+            btn.textContent = I18N[lang].analyzing;
 
-            const payload = {};
+            const payload = { disease: document.getElementById('disease').value };
             new FormData(form).forEach((v, k) => payload[k] = parseFloat(v));
 
             try {
@@ -191,24 +302,20 @@
                     body: JSON.stringify(payload),
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error || 'ত্রুটি ঘটেছে');
-
-                resultBox.style.background = colorFor(data.probability);
-                document.getElementById('risk-level').textContent = data.risk_level;
-                document.getElementById('probability').textContent = data.probability_percent + '%';
-                document.getElementById('label').textContent = 'পূর্বাভাস: ' + data.label;
-                document.getElementById('bar-fill').style.width = data.probability_percent + '%';
-                if (data.explanation) renderFactors(data.explanation);
-                if (data.recommendations) renderTips(data.recommendations);
+                if (!res.ok) throw new Error(data.error || 'Error');
+                lastData = data;
+                renderResult(data);
                 resultDiv.style.display = 'block';
                 resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } catch (err) {
                 alert(err.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'সম্ভাবনা নির্ণয় করুন';
+                btn.textContent = I18N[lang].predict_btn;
             }
         });
+
+        applyLang();
     </script>
 </body>
 </html>

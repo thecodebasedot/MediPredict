@@ -13,8 +13,9 @@ from xgboost import XGBClassifier
 
 from . import config
 
-# ফিচারের বাংলা লেবেল ম্যাপ (UI-তে দেখানোর জন্য)
+# ফিচারের লেবেল ম্যাপ (UI-তে দেখানোর জন্য)
 _LABELS = {f["name"]: f["label"] for f in config.FEATURES}
+_LABELS_EN = {f["name"]: f["label_en"] for f in config.FEATURES}
 
 
 def explain_prediction(model: XGBClassifier, features: dict, top_k: int = 5) -> list[dict]:
@@ -37,9 +38,11 @@ def explain_prediction(model: XGBClassifier, features: dict, top_k: int = 5) -> 
             {
                 "feature": name,
                 "label": _LABELS.get(name, name),
+                "label_en": _LABELS_EN.get(name, name),
                 "value": row[name],
                 "contribution": round(float(contrib), 4),
                 "direction": "বাড়ায়" if contrib > 0 else "কমায়",
+                "direction_en": "increases" if contrib > 0 else "decreases",
             }
         )
 
