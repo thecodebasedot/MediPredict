@@ -13,13 +13,23 @@
 
 ---
 
+## 🖼️ স্ক্রিনশট
+
+![MediPredict ওয়েব অ্যাপ](docs/screenshot_result.png)
+
+---
+
 ## ✨ ফিচার
 
 - 📊 চিকিৎসাগত নিয়মভিত্তিক সিনথেটিক ডেটাসেট জেনারেটর
 - 🤖 XGBoost ক্লাসিফায়ার (~৮৮% accuracy, ~০.৯৫ ROC-AUC)
 - 📈 মডেল মূল্যায়ন: accuracy, ROC-AUC, confusion matrix, feature importance
+- 🔍 **ব্যাখ্যাযোগ্যতা** — কোন ফ্যাক্টর প্রেডিকশনে কতটা অবদান রাখল (SHAP-স্টাইল)
+- 💡 **ব্যক্তিগত স্বাস্থ্য পরামর্শ** — ইনপুট অনুযায়ী বাংলায় পরামর্শ
+- 📁 **ব্যাচ প্রেডিকশন** — CSV আপলোডে একসাথে অনেক রোগীর পূর্বাভাস
 - 🌐 বাংলা UI সহ Flask ওয়েব অ্যাপ ও JSON API
 - 💻 ইন্টারঅ্যাক্টিভ CLI প্রেডিকশন
+- 🐳 Docker সাপোর্ট
 - ✅ pytest টেস্ট স্যুট
 
 ---
@@ -32,7 +42,9 @@ MediPredict/
 │   ├── config.py        # কনফিগ: পাথ, ফিচার, হাইপারপ্যারামিটার
 │   ├── data.py          # সিনথেটিক ডেটাসেট তৈরি/লোড
 │   ├── train.py         # XGBoost প্রশিক্ষণ ও মূল্যায়ন
-│   └── predict.py       # পূর্বাভাস (CLI + প্রোগ্রাম্যাটিক)
+│   ├── explain.py       # প্রেডিকশন ব্যাখ্যা (ফিচার অবদান)
+│   ├── recommend.py     # নিয়মভিত্তিক স্বাস্থ্য পরামর্শ
+│   └── predict.py       # পূর্বাভাস (CLI + প্রোগ্রাম্যাটিক + ব্যাচ)
 ├── app/
 │   ├── app.py           # Flask ওয়েব অ্যাপ
 │   └── templates/
@@ -82,6 +94,13 @@ python -m app.app
 
 ## 🔌 API
 
+| এন্ডপয়েন্ট | মেথড | কাজ |
+|---|---|---|
+| `/api/predict` | POST | একক রোগীর পূর্বাভাস + ব্যাখ্যা + পরামর্শ |
+| `/api/batch` | POST | CSV আপলোডে ব্যাচ পূর্বাভাস |
+| `/api/model-info` | GET | মডেল মেট্রিক ও ফিচার গুরুত্ব |
+| `/api/health` | GET | সার্ভার স্ট্যাটাস |
+
 `POST /api/predict`
 
 ```bash
@@ -97,10 +116,31 @@ curl -X POST http://127.0.0.1:5000/api/predict \
   "probability_percent": 100.0,
   "prediction": 1,
   "risk_level": "অতি উচ্চ ঝুঁকি",
-  "label": "ঝুঁকিপূর্ণ"
+  "label": "ঝুঁকিপূর্ণ",
+  "explanation": [
+    {"feature": "glucose", "label": "রক্তে গ্লুকোজ (mg/dL)", "value": 180.0,
+     "contribution": 3.82, "direction": "বাড়ায়"}
+  ],
+  "recommendations": ["🩸 রক্তে গ্লুকোজ বেশি — ...", "🚭 ধূমপান ..."]
 }
 ```
 > অনুপস্থিত ফিচারের জন্য ডিফল্ট মান ব্যবহার হয়।
+
+`POST /api/batch` — CSV আপলোড (কলাম নাম `src/config.py` অনুযায়ী):
+
+```bash
+curl -X POST http://127.0.0.1:5000/api/batch -F "file=@data/sample_batch.csv"
+```
+
+---
+
+## 🐳 Docker
+
+```bash
+docker build -t medipredict .
+docker run -p 5000:5000 medipredict
+```
+ব্রাউজারে খুলুন: **http://127.0.0.1:5000**
 
 ---
 

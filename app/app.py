@@ -7,9 +7,11 @@
 
 from __future__ import annotations
 
+import io
 import sys
 from pathlib import Path
 
+import pandas as pd
 from flask import Flask, jsonify, render_template, request
 
 # প্যাকেজ ইম্পোর্ট নিশ্চিত করতে প্রজেক্ট রুট পাথে যোগ করা হয়
@@ -42,8 +44,47 @@ def api_predict():
     except FileNotFoundError as exc:
         return jsonify({"error": str(exc)}), 503
 
-    result = predictor.predict(features)
+    result = predictor.predict(features, explain=True)
     return jsonify(result)
+
+
+@app.route("/api/model-info")
+def model_info():
+    """মডেলের মেট্রিক ও ফিচার গুরুত্ব রিটার্ন করে।"""
+    try:
+        predictor = get_predictor()
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 503
+    return jsonify(predictor.metadata)
+
+
+@app.route("/api/batch", methods=["POST"])
+def api_batch():
+    """CSV আপলোড নিয়ে একাধিক রোগীর পূর্বাভাস রিটার্ন করে।"""
+    if "file" not in request.files:
+        return jsonify({"error": "কোনো ফাইল আপলোড করা হয়নি।"}), 400
+    file = request.files["file"]
+    try:
+        df = pd.read_csv(io.StringIO(file.stream.read().decode("utf-8")))
+    except Exception:
+        return jsonify({"error": "CSV ফাইল পড়া যায়নি।"}), 400
+
+    try:
+        predictor = get_predictor()
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 503
+
+    try:
+        out = predictor.predict_batch(df)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    return jsonify(
+        {
+            "count": int(out.shape[0]),
+            "results": out.to_dict(orient="records"),
+        }
+    )
 
 
 @app.route("/api/health")
