@@ -189,8 +189,39 @@ def test_api_security(monkeypatch):
 def test_disease_config():
     """রোগ কনফিগ ও ওজনের বৈধতা।"""
     assert config.DEFAULT_DISEASE in config.DISEASES
+    # কমপক্ষে ৫টি রোগ (ডায়াবেটিস, হৃদরোগ, উচ্চ রক্তচাপ, কিডনি, স্ট্রোক)
+    assert len(config.DISEASES) >= 5
+    for key in ("diabetes", "heart", "hypertension", "kidney", "stroke"):
+        assert key in config.DISEASES
     for disease, meta in config.DISEASES.items():
         assert "name_bn" in meta and "name_en" in meta and "weights" in meta
         # ওজনের সব ফিচার বৈধ
         for feat in meta["weights"]:
             assert feat in config.FEATURE_NAMES
+
+
+def test_pwa_endpoints():
+    """PWA ম্যানিফেস্ট, সার্ভিস ওয়ার্কার ও আইকন সার্ভ হয়।"""
+    import json
+    import app.app as appmod
+
+    c = appmod.app.test_client()
+    assert c.get("/sw.js").status_code == 200
+    mf = c.get("/static/manifest.webmanifest")
+    assert mf.status_code == 200
+    manifest = json.loads(mf.data)
+    assert manifest["display"] == "standalone"
+    assert len(manifest["icons"]) >= 2
+    assert c.get("/static/icon-192.png").status_code == 200
+
+
+def test_real_data():
+    """প্রকৃত Pima ডেটাসেট থাকলে প্রশিক্ষণ যাচাই (নাহলে স্কিপ)।"""
+    import pytest
+    from src import real_data
+
+    if not real_data.RAW_PATH.exists():
+        pytest.skip("Pima ডেটাসেট স্থানীয়ভাবে নেই")
+    metrics = real_data.train()
+    assert metrics["n_samples"] == 768
+    assert 0.6 < metrics["accuracy"] <= 1.0

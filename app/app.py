@@ -16,7 +16,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 import pandas as pd
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_from_directory
 
 # প্যাকেজ ইম্পোর্ট নিশ্চিত করতে প্রজেক্ট রুট পাথে যোগ করা হয়
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -68,6 +68,12 @@ def _read_features(data: dict) -> dict:
 @app.route("/")
 def index():
     return render_template("index.html", features=config.FEATURES, diseases=config.DISEASES)
+
+
+@app.route("/sw.js")
+def service_worker():
+    """সার্ভিস ওয়ার্কার রুট-স্কোপে সার্ভ করা হয় (PWA-এর জন্য)।"""
+    return send_from_directory(app.static_folder, "sw.js", mimetype="application/javascript")
 
 
 @app.route("/api/diseases")

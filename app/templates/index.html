@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MediPredict — রোগের সম্ভাবনা পূর্বাভাস</title>
+    <link rel="manifest" href="/static/manifest.webmanifest">
+    <meta name="theme-color" content="#0d9488">
+    <link rel="apple-touch-icon" href="/static/icon-192.png">
+    <link rel="icon" type="image/png" href="/static/icon-192.png">
     <style>
         :root {
             --primary: #0d9488; --primary-dark: #0f766e;
@@ -584,6 +588,13 @@
 
         applyLang();
         applyAssistantPlaceholder();
+
+        // ---------------- PWA: সার্ভিস ওয়ার্কার রেজিস্টার ----------------
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(() => {});
+            });
+        }
     </script>
 </body>
 </html>

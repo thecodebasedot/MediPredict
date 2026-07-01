@@ -67,6 +67,22 @@ DISEASES = {
             "physical_activity": -0.10, "heart_rate": 0.012, "glucose": 0.005,
         },
     },
+    "kidney": {
+        "name_bn": "কিডনি রোগ",
+        "name_en": "Kidney Disease",
+        "weights": {
+            "blood_pressure": 0.040, "glucose": 0.022, "age": 0.028, "bmi": 0.020,
+            "cholesterol": 0.008, "family_history": 0.7, "smoking": 0.4,
+        },
+    },
+    "stroke": {
+        "name_bn": "স্ট্রোক",
+        "name_en": "Stroke",
+        "weights": {
+            "age": 0.045, "blood_pressure": 0.045, "smoking": 0.8, "glucose": 0.015,
+            "heart_rate": 0.018, "cholesterol": 0.012, "bmi": 0.018, "physical_activity": -0.08,
+        },
+    },
 }
 
 DISEASE_KEYS = list(DISEASES.keys())
