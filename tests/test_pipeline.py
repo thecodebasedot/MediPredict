@@ -77,6 +77,115 @@ def test_risk_levels():
     assert MediPredictor._risk_level(0.9, "en") == "Very High Risk"
 
 
+def test_history(tmp_path, monkeypatch):
+    """হিস্টোরি সংরক্ষণ ও পুনরুদ্ধার টেস্ট।"""
+    from src import history
+
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "test_history.db")
+    history.clear_history()
+
+    result = {"disease": "diabetes", "disease_name": "ডায়াবেটিস",
+              "probability_percent": 87.5, "risk_level": "উচ্চ ঝুঁকি"}
+    rid = history.save_prediction(result, {"glucose": 180})
+    assert rid > 0
+
+    hist = history.get_history(limit=5)
+    assert len(hist) == 1
+    assert hist[0]["disease"] == "diabetes"
+    assert hist[0]["features"]["glucose"] == 180
+
+    assert history.clear_history() == 1
+    assert history.get_history() == []
+
+
+def test_counterfactual():
+    """অ্যাকশন প্ল্যান উচ্চ-ঝুঁকি কেসে ঝুঁকি কমায় ও বৈধ ধাপ দেয়।"""
+    from sklearn.model_selection import train_test_split
+    from xgboost import XGBClassifier
+    from src.counterfactual import suggest_action_plan, MODIFIABLE
+
+    df = generate_dataset(n_samples=1500)
+    X, y = df[config.FEATURE_NAMES], df[config.DEFAULT_DISEASE]
+    X_tr, _, y_tr, _ = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = XGBClassifier(n_estimators=60, max_depth=3, random_state=42)
+    model.fit(X_tr, y_tr)
+
+    risky = {"age": 60, "glucose": 200, "blood_pressure": 150, "bmi": 38,
+             "cholesterol": 280, "insulin": 200, "heart_rate": 100,
+             "smoking": 1, "physical_activity": 1, "family_history": 1}
+    plan = suggest_action_plan(model, risky)
+    assert plan["end_probability_percent"] <= plan["start_probability_percent"]
+    # অপরিবর্তনযোগ্য ফিচার (age, family_history) প্ল্যানে থাকবে না
+    for step in plan["steps"]:
+        assert step["feature"] in MODIFIABLE
+
+
+def test_assistant_offline():
+    """API key ছাড়া সহকারীর আচরণ (নেটওয়ার্ক ছাড়াই)।"""
+    from src import assistant
+
+    msgs = assistant.build_messages("why?", {"disease": "diabetes", "probability_percent": 80})
+    assert msgs[0]["role"] == "user"
+    assert "diabetes" in assistant.build_context_text({"disease": "diabetes"}).lower()
+    # খালি প্রশ্নে ValueError
+    import pytest
+    with pytest.raises(ValueError):
+        assistant.ask("")
+
+
+def _full_features(glucose=120):
+    return {n: float(glucose if n == "glucose" else
+                     {"smoking": 0, "family_history": 0, "physical_activity": 5}.get(n, 90))
+            for n in config.FEATURE_NAMES}
+
+
+def test_patient_trend(tmp_path, monkeypatch):
+    """রোগীভিত্তিক সময়ক্রমিক ট্রেন্ড সঠিক ক্রমে আসে।"""
+    from src import history
+
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "h.db")
+    base = {"disease": "diabetes", "disease_name": "ডায়াবেটিস",
+            "probability_percent": 90.0, "risk_level": "উচ্চ ঝুঁকি"}
+    history.save_prediction(base, {"glucose": 200}, patient_id="P1")
+    history.save_prediction({**base, "probability_percent": 70.0}, {"glucose": 150}, patient_id="P1")
+    history.save_prediction(base, {"glucose": 180}, patient_id="P2")
+
+    trend = history.get_patient_trend("P1", disease="diabetes")
+    assert [t["probability_percent"] for t in trend] == [90.0, 70.0]  # ক্রমানুসারে
+    patients = {p["patient_id"]: p["count"] for p in history.list_patients()}
+    assert patients == {"P1": 2, "P2": 1}
+
+
+def test_analytics_and_drift(tmp_path, monkeypatch):
+    """সমষ্টিগত সারাংশ ও PSI ড্রিফট।"""
+    from src import history, analytics
+
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "h.db")
+    base = {"disease": "diabetes", "disease_name": "ডায়াবেটিস",
+            "probability_percent": 80.0, "risk_level": "উচ্চ ঝুঁকি"}
+    for g in range(60, 75):  # ১৫টি রেকর্ড, পূর্ণ ফিচারসহ
+        history.save_prediction(base, _full_features(glucose=g * 3))
+
+    s = analytics.summary()
+    assert s["total"] == 15
+    assert s["by_disease"]["diabetes"]["count"] == 15
+
+    d = analytics.drift(min_samples=5)
+    assert d["status"] == "ok"
+    assert "glucose" in d["features"]
+
+
+def test_api_security(monkeypatch):
+    """API key সেট থাকলে /api/* সুরক্ষিত, health উন্মুক্ত।"""
+    import app.app as appmod
+
+    monkeypatch.setattr(appmod, "API_KEY", "secret")
+    c = appmod.app.test_client()
+    assert c.get("/api/diseases").status_code == 401
+    assert c.get("/api/diseases", headers={"X-API-Key": "secret"}).status_code == 200
+    assert c.get("/api/health").status_code == 200  # healthcheck সবসময় উন্মুক্ত
+
+
 def test_disease_config():
     """রোগ কনফিগ ও ওজনের বৈধতা।"""
     assert config.DEFAULT_DISEASE in config.DISEASES

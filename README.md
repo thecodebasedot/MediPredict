@@ -1,5 +1,10 @@
 # 🩺 MediPredict
 
+[![CI](https://github.com/thecodebasedot/MediPredict/actions/workflows/ci.yml/badge.svg)](https://github.com/thecodebasedot/MediPredict/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)
+![XGBoost](https://img.shields.io/badge/model-XGBoost-success)
+![License](https://img.shields.io/badge/license-see%20LICENSE-lightgrey)
+
 **XGBoost ভিত্তিক মাল্টি-ডিজিজ রোগের সম্ভাবনা পূর্বাভাস সিস্টেম** — একটি এন্ড-টু-এন্ড মেশিন লার্নিং প্রজেক্ট যা রোগীর স্বাস্থ্য সূচক (গ্লুকোজ, বিএমআই, রক্তচাপ ইত্যাদি) নিয়ে **ডায়াবেটিস, হৃদরোগ ও উচ্চ রক্তচাপের** সম্ভাবনা পূর্বাভাস দেয়।
 
 | | |
@@ -14,32 +19,71 @@
 
 ---
 
+## 📊 মডেল পারফরম্যান্স
+
+| রোগ | Accuracy | ROC-AUC | Brier Score |
+|---|---|---|---|
+| ডায়াবেটিস (Diabetes) | 0.887 | 0.957 | 0.082 |
+| হৃদরোগ (Heart Disease) | 0.870 | 0.944 | 0.093 |
+| উচ্চ রক্তচাপ (Hypertension) | 0.863 | 0.940 | 0.097 |
+
+> প্রতিটি রোগের জন্য আলাদা XGBoost মডেল · ৬,০০০ নমুনার সিনথেটিক ডেটাসেট · ৮০/২০ ট্রেন-টেস্ট স্প্লিট। (Brier score যত কম তত ভালো ক্যালিব্রেশন।)
+
+---
+
 ## 🖼️ স্ক্রিনশট
 
 | বাংলা (Light) | English (Dark) |
 |---|---|
 | ![Light](docs/screenshot_result.png) | ![Dark](docs/screenshot_dark_en.png) |
 
-### মডেল তুলনা
-![Model Comparison](docs/model_comparison.png)
+**Counterfactual অ্যাকশন প্ল্যান, কনফিডেন্স ইন্টারভ্যাল ও AI সহকারী:**
+
+![Action plan + CI + Assistant](docs/screenshot_v4.png)
+
+**রোগীর ঝুঁকি-ট্রেন্ড ও অ্যানালিটিক্স ড্যাশবোর্ড:**
+
+| Patient Risk Trend | Analytics + Drift |
+|---|---|
+| ![Trend](docs/screenshot_trend.png) | ![Analytics](docs/screenshot_analytics.png) |
+
+### SHAP ব্যাখ্যাযোগ্যতা (ডায়াবেটিস)
+| Beeswarm Summary | Waterfall (একক রোগী) |
+|---|---|
+| ![SHAP beeswarm](docs/shap_diabetes.png) | ![SHAP waterfall](docs/shap_waterfall_diabetes.png) |
+
+### মডেল তুলনা ও ক্যালিব্রেশন
+| Model Comparison | Calibration Curve |
+|---|---|
+| ![Model Comparison](docs/model_comparison.png) | ![Calibration](docs/calibration.png) |
 
 ---
 
 ## ✨ ফিচার
 
+### 🚀 সুপার-অ্যাডভান্সড
+- 🎯 **Counterfactual অ্যাকশন প্ল্যান** — ঝুঁকি কমাতে সর্বনিম্ন কী কী বদলাতে হবে তার ক্রমানুসারে তালিকা (greedy অপ্টিমাইজেশন)
+- 🔬 **পূর্ণ SHAP ভিজ্যুয়ালাইজেশন** — beeswarm summary ও waterfall প্লট
+- 🤖 **AI স্বাস্থ্য সহকারী** — Claude API দিয়ে প্রশ্নোত্তর (বাংলা/English; `ANTHROPIC_API_KEY` দরকার)
+- 📉 **প্রোবাবিলিটি ক্যালিব্রেশন + কনফিডেন্স ইন্টারভ্যাল** — bootstrap ensemble দিয়ে অনিশ্চয়তা পরিমাপ + reliability curve
+
+### 🏥 প্ল্যাটফর্ম ও প্রোডাকশন
+- 👤 **রোগী প্রোফাইল + ঝুঁকি-ট্রেন্ড** — রোগী আইডি দিয়ে একাধিক ভিজিটের ঝুঁকি সময়ের সাথে ট্র্যাক ও চার্ট
+- 📊 **অ্যানালিটিক্স ড্যাশবোর্ড** — সব প্রেডিকশনের সমষ্টিগত পরিসংখ্যান
+- 📉 **ডেটা-ড্রিফট মনিটরিং** — PSI দিয়ে ইনপুট বিতরণের পরিবর্তন শনাক্ত
+- 🐳 **প্রোডাকশন স্ট্যাক** — gunicorn + docker-compose + healthcheck
+- 🔐 **API নিরাপত্তা** — ঐচ্ছিক API key অথেন্টিকেশন + rate limiting
+
+### মূল ফিচার
 - 🩺 **মাল্টি-ডিজিজ** — ডায়াবেটিস, হৃদরোগ ও উচ্চ রক্তচাপের আলাদা XGBoost মডেল
-- 📊 চিকিৎসাগত নিয়মভিত্তিক সিনথেটিক ডেটাসেট জেনারেটর
-- 🤖 XGBoost ক্লাসিফায়ার (~৮৬–৮৯% accuracy, ~০.৯৪–০.৯৬ ROC-AUC)
-- 🔍 **ব্যাখ্যাযোগ্যতা** — কোন ফ্যাক্টর প্রেডিকশনে কতটা অবদান রাখল (SHAP-স্টাইল)
-- 💡 **দ্বিভাষিক স্বাস্থ্য পরামর্শ** — ইনপুট অনুযায়ী বাংলা/English পরামর্শ
+- 🎚️ **What-If সিমুলেটর** — স্লাইডার টানলে রিয়েল-টাইমে ঝুঁকি আপডেট (লাইভ মোড)
+- 📜 **প্রেডিকশন হিস্টোরি** — SQLite-এ সংরক্ষণ ও পুনরুদ্ধার
+- 🔧 **হাইপারপ্যারামিটার টিউনিং** — RandomizedSearchCV দিয়ে সেরা প্যারামিটার
+- ⚙️ **GitHub Actions CI** — push/PR-এ স্বয়ংক্রিয় টেস্ট (Python 3.10–3.12)
+- 💡 **দ্বিভাষিক স্বাস্থ্য পরামর্শ** ও 🔍 **ফিচার অবদান ব্যাখ্যা**
 - 📈 **মডেল তুলনা** — XGBoost বনাম Random Forest বনাম Logistic Regression (চার্ট সহ)
-- 📁 **ব্যাচ প্রেডিকশন** — CSV আপলোডে একসাথে অনেক রোগীর পূর্বাভাস
-- 🌓 **ডার্ক মোড + ভাষা টগল** (বাংলা ⇄ English)
-- 📄 **PDF রিপোর্ট** — ব্রাউজার প্রিন্ট দিয়ে ফলাফল সেভ
-- 🌐 Flask ওয়েব অ্যাপ ও JSON API
-- 💻 ইন্টারঅ্যাক্টিভ CLI প্রেডিকশন
-- 🐳 Docker সাপোর্ট
-- ✅ pytest টেস্ট স্যুট
+- 📁 **ব্যাচ প্রেডিকশন** (CSV) · 🌓 **ডার্ক মোড + ভাষা টগল** · 📄 **PDF রিপোর্ট**
+- 🌐 Flask ওয়েব অ্যাপ ও JSON API · 💻 CLI · 🐳 Docker · ✅ pytest (১২ টেস্ট)
 
 ---
 
@@ -54,18 +98,29 @@ MediPredict/
 │   ├── explain.py       # প্রেডিকশন ব্যাখ্যা (ফিচার অবদান)
 │   ├── recommend.py     # দ্বিভাষিক স্বাস্থ্য পরামর্শ
 │   ├── compare.py       # মডেল তুলনা + চার্ট
-│   └── predict.py       # পূর্বাভাস (CLI + প্রোগ্রাম্যাটিক + ব্যাচ + মাল্টি)
+│   ├── tune.py          # হাইপারপ্যারামিটার টিউনিং (RandomizedSearchCV)
+│   ├── history.py       # হিস্টোরি + রোগী ঝুঁকি-ট্রেন্ড (SQLite)
+│   ├── analytics.py     # সমষ্টিগত অ্যানালিটিক্স + ড্রিফট (PSI)
+│   ├── counterfactual.py# ঝুঁকি কমানোর অ্যাকশন প্ল্যান
+│   ├── calibrate.py     # ক্যালিব্রেশন + bootstrap অনিশ্চয়তা ensemble
+│   ├── shap_explain.py  # SHAP beeswarm + waterfall প্লট
+│   ├── assistant.py     # AI স্বাস্থ্য সহকারী (Claude API)
+│   └── predict.py       # পূর্বাভাস (CLI + প্রোগ্রাম্যাটিক + ব্যাচ + মাল্টি + CI)
 ├── app/
-│   ├── app.py           # Flask ওয়েব অ্যাপ
+│   ├── app.py           # Flask ওয়েব অ্যাপ (১১টি API এন্ডপয়েন্ট)
 │   └── templates/
-│       └── index.html   # বাংলা/English UI, ডার্ক মোড
+│       └── index.html   # বাংলা/English UI, ডার্ক মোড, What-If সিমুলেটর
 ├── tests/
-│   └── test_pipeline.py # টেস্ট
+│   └── test_pipeline.py # ৯টি pytest টেস্ট
+├── .github/workflows/
+│   └── ci.yml           # GitHub Actions CI (Python 3.10–3.12)
 ├── data/                # ডেটাসেট (অটো-জেনারেটেড) + sample_batch.csv
 ├── models/              # প্রশিক্ষিত মডেল (অটো-জেনারেটেড)
 ├── docs/                # স্ক্রিনশট ও চার্ট
 ├── Dockerfile
-├── requirements.txt
+├── docker-compose.yml       # প্রোডাকশন স্ট্যাক (gunicorn + healthcheck)
+├── requirements.txt         # মূল নির্ভরতা
+├── requirements-extra.txt   # ঐচ্ছিক: shap, anthropic
 └── README.md
 ```
 
@@ -79,14 +134,20 @@ MediPredict/
 git clone https://github.com/thecodebasedot/medipredict.git
 cd medipredict
 pip install -r requirements.txt
+pip install -r requirements-extra.txt   # ঐচ্ছিক: SHAP প্লট + AI সহকারী
 ```
 
 ### ২. মডেল প্রশিক্ষণ
 
 ```bash
-python -m src.train       # ৩টি রোগের মডেল প্রশিক্ষণ
-python -m src.compare     # (ঐচ্ছিক) মডেল তুলনা + চার্ট
+python -m src.train            # ৩টি রোগের মডেল প্রশিক্ষণ
+python -m src.calibrate        # (ঐচ্ছিক) ক্যালিব্রেশন + অনিশ্চয়তা ensemble
+python -m src.compare          # (ঐচ্ছিক) মডেল তুলনা + চার্ট
+python -m src.tune heart       # (ঐচ্ছিক) হাইপারপ্যারামিটার টিউনিং
+python -m src.shap_explain     # (ঐচ্ছিক) SHAP প্লট তৈরি
 ```
+
+> **AI সহকারী চালু করতে:** `export ANTHROPIC_API_KEY=sk-...` (ঐচ্ছিকভাবে `MEDIPREDICT_MODEL`)।
 
 ### ৩. পূর্বাভাস (CLI)
 
@@ -113,7 +174,19 @@ python -m app.app
 | `/api/diseases` | GET | সমর্থিত রোগের তালিকা |
 | `/api/model-info` | GET | সব রোগের মডেল মেট্রিক ও ফিচার গুরুত্ব |
 | `/api/comparison` | GET | মডেল তুলনার ফলাফল |
+| `/api/history` | GET | সর্বশেষ পূর্বাভাসের হিস্টোরি (`?limit=N`) |
+| `/api/history/clear` | POST | হিস্টোরি মুছে ফেলা |
+| `/api/patients` | GET | রোগীভিত্তিক সারাংশের তালিকা |
+| `/api/patient/<id>/trend` | GET | একজন রোগীর ঝুঁকি-ট্রেন্ড (`?disease=`) |
+| `/api/analytics/summary` | GET | সমষ্টিগত পরিসংখ্যান |
+| `/api/analytics/drift` | GET | ডেটা-ড্রিফট (PSI) |
+| `/api/assistant/status` | GET | AI সহকারী ব্যবহারযোগ্য কিনা |
+| `/api/assistant` | POST | AI সহকারীকে প্রশ্ন (`{question, context}`) |
 | `/api/health` | GET | সার্ভার স্ট্যাটাস |
+
+> `/api/predict`-এ ঐচ্ছিক `patient_id` পাঠালে পূর্বাভাসটি সেই রোগীর ট্রেন্ডে যুক্ত হয়।
+
+> `/api/predict` রেসপন্সে ঝুঁকিপূর্ণ হলে `action_plan` (counterfactual) এবং ensemble থাকলে `confidence_interval_percent` ও `uncertainty_percent` যুক্ত হয়।
 
 `POST /api/predict`
 
@@ -151,13 +224,33 @@ curl -X POST http://127.0.0.1:5000/api/batch \
 
 ---
 
-## 🐳 Docker
+## 🐳 প্রোডাকশন ডিপ্লয়মেন্ট
 
+**Docker Compose (সুপারিশকৃত)** — gunicorn WSGI সার্ভার + healthcheck + persistent DB volume:
+
+```bash
+docker compose up --build
+```
+
+**অথবা সরাসরি Docker:**
 ```bash
 docker build -t medipredict .
 docker run -p 5000:5000 medipredict
 ```
 ব্রাউজারে খুলুন: **http://127.0.0.1:5000**
+
+### 🔐 ঐচ্ছিক নিরাপত্তা (পরিবেশ ভেরিয়েবল)
+
+| ভেরিয়েবল | কাজ |
+|---|---|
+| `MEDIPREDICT_API_KEY` | সেট থাকলে `/api/*` এ `X-API-Key` হেডার আবশ্যক (`/api/health` উন্মুক্ত) |
+| `MEDIPREDICT_RATE_LIMIT` | প্রতি IP প্রতি মিনিটে সর্বোচ্চ অনুরোধ (429 রিটার্ন) |
+| `ANTHROPIC_API_KEY` | AI সহকারী সক্রিয় করে |
+
+```bash
+# উদাহরণ: API key দিয়ে সুরক্ষিত অনুরোধ
+curl -H "X-API-Key: your-secret" http://127.0.0.1:5000/api/diseases
+```
 
 ---
 

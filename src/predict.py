@@ -19,6 +19,7 @@ import pandas as pd
 from xgboost import XGBClassifier
 
 from . import config
+from .counterfactual import suggest_action_plan
 from .explain import explain_prediction
 from .recommend import get_recommendations
 
@@ -28,6 +29,7 @@ class MediPredictor:
 
     def __init__(self):
         self.models: dict[str, XGBClassifier] = {}
+        self.ensembles: dict[str, list[XGBClassifier]] = {}
         missing = []
         for disease in config.DISEASE_KEYS:
             path = config.model_path(disease)
@@ -37,12 +39,27 @@ class MediPredictor:
             model = XGBClassifier()
             model.load_model(path)
             self.models[disease] = model
+            self._load_ensemble(disease)
 
         if missing:
             raise FileNotFoundError(
                 f"মডেল পাওয়া যায়নি: {', '.join(missing)}\n"
                 "প্রথমে প্রশিক্ষণ দিন: python -m src.train"
             )
+
+    def _load_ensemble(self, disease: str) -> None:
+        """অনিশ্চয়তা পরিমাপের জন্য bootstrap ensemble লোড করে (থাকলে)।"""
+        from .calibrate import N_ENSEMBLE, ensemble_path
+
+        members = []
+        for k in range(N_ENSEMBLE):
+            path = ensemble_path(disease, k)
+            if path.exists():
+                m = XGBClassifier()
+                m.load_model(path)
+                members.append(m)
+        if members:
+            self.ensembles[disease] = members
 
         self.metadata = {}
         if config.METADATA_PATH.exists():
@@ -79,8 +96,30 @@ class MediPredictor:
         if explain:
             result["explanation"] = explain_prediction(self.models[disease], row)
             result["recommendations"] = get_recommendations(row)
+            # ঝুঁকিপূর্ণ হলে অ্যাকশন প্ল্যান যোগ করা হয়
+            if probability > 0.25:
+                result["action_plan"] = suggest_action_plan(self.models[disease], row)
+            # bootstrap ensemble থাকলে confidence interval যোগ করা হয়
+            ci = self._confidence_interval(disease, X, probability)
+            if ci:
+                result.update(ci)
 
         return result
+
+    def _confidence_interval(self, disease: str, X, probability: float):
+        """bootstrap ensemble থেকে ৮০% confidence interval ও অনিশ্চয়তা নির্ণয়।"""
+        members = self.ensembles.get(disease)
+        if not members:
+            return None
+        import numpy as np
+
+        probs = np.array([float(m.predict_proba(X)[0, 1]) for m in members])
+        lo = min(float(np.percentile(probs, 10)), probability)
+        hi = max(float(np.percentile(probs, 90)), probability)
+        return {
+            "confidence_interval_percent": [round(lo * 100, 1), round(hi * 100, 1)],
+            "uncertainty_percent": round(float(probs.std()) * 100, 1),
+        }
 
     def predict_all(self, features: dict) -> list[dict]:
         """সব রোগের জন্য সংক্ষিপ্ত পূর্বাভাস সারাংশ।"""

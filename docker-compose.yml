@@ -1,0 +1,26 @@
+services:
+  medipredict:
+    build: .
+    image: medipredict:latest
+    ports:
+      - "5000:5000"
+    environment:
+      # ঐচ্ছিক নিরাপত্তা — মান সেট করলে সক্রিয় হয়
+      # MEDIPREDICT_API_KEY: "your-secret-key"
+      # MEDIPREDICT_RATE_LIMIT: "120"
+      # AI সহকারীর জন্য:
+      # ANTHROPIC_API_KEY: "sk-..."
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      # হিস্টোরি DB কন্টেইনার রিস্টার্টেও টিকে থাকে
+      - medipredict-data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health')"]
+      interval: 30s
+      timeout: 4s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  medipredict-data:

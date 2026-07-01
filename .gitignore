@@ -28,4 +28,5 @@ Thumbs.db
 # MediPredict artifacts (প্রশিক্ষণ দিয়ে পুনঃতৈরি করা যায়)
 models/*.json
 data/medical_data.csv
+data/history.db
 !models/.gitkeep
