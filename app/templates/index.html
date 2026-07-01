@@ -98,6 +98,7 @@
 <body>
     <div class="container">
         <div class="topbar">
+            <button id="analytics-btn" onclick="toggleAnalytics()">📊</button>
             <button id="history-btn" onclick="toggleHistory()">📜</button>
             <button id="lang-btn" onclick="toggleLang()">English</button>
             <button id="theme-btn" onclick="toggleTheme()">🌙</button>
@@ -119,6 +120,12 @@
                         <option value="{{ key }}">{{ d.name_bn }} / {{ d.name_en }}</option>
                         {% endfor %}
                     </select>
+                </div>
+
+                <div class="disease-select">
+                    <label for="patient_id" data-i18n="patient_label">👤 রোগী আইডি (ঐচ্ছিক — ঝুঁকি-ট্রেন্ড ট্র্যাক করতে)</label>
+                    <input type="text" id="patient_id" placeholder="P001"
+                           style="width:100%; padding:11px 12px; border:1.5px solid var(--input-border); border-radius:10px; background:var(--input-bg); color:var(--text); font-size:1rem;">
                 </div>
 
                 <label class="live-toggle">
@@ -160,6 +167,11 @@
                     <div id="factors"></div>
                 </div>
 
+                <div class="panel" id="trend-panel" style="display:none;">
+                    <h3 data-i18n="trend_title">📈 রোগীর ঝুঁকি-ট্রেন্ড</h3>
+                    <div id="trend-chart"></div>
+                </div>
+
                 <div class="panel" id="action-panel" style="display:none;">
                     <h3 data-i18n="action_title">🎯 ঝুঁকি কমানোর অ্যাকশন প্ল্যান</h3>
                     <p class="hist-meta" id="action-summary"></p>
@@ -191,6 +203,14 @@
             </p>
         </div>
 
+        <div class="card" id="analytics-card" style="display:none; margin-top:18px;">
+            <h3 style="color:var(--primary-dark);" data-i18n="analytics_title">📊 অ্যানালিটিক্স ড্যাশবোর্ড</h3>
+            <div id="analytics-summary" style="margin-top:12px;"></div>
+            <h3 style="color:var(--primary-dark); margin-top:18px;" data-i18n="drift_title">📉 ডেটা-ড্রিফট মনিটরিং</h3>
+            <p class="hist-meta" data-i18n="drift_desc">প্রশিক্ষণ ডেটার তুলনায় সাম্প্রতিক ইনপুটের পরিবর্তন (PSI)। PSI &lt; 0.1 স্থিতিশীল · 0.1–0.25 সামান্য · &gt; 0.25 উল্লেখযোগ্য।</p>
+            <div id="analytics-drift" style="margin-top:10px;"></div>
+        </div>
+
         <div class="card" id="history-card" style="display:none; margin-top:18px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
                 <h3 style="color:var(--primary-dark);" data-i18n="history_title">📜 প্রেডিকশন হিস্টোরি</h3>
@@ -199,7 +219,7 @@
             <div id="history-list" style="margin-top:12px;"></div>
         </div>
 
-        <footer>MediPredict v3.0 · XGBoost · Multi-Disease · What-If · History</footer>
+        <footer>MediPredict v4.0 · XGBoost · Multi-Disease · Patient Tracking · Analytics</footer>
     </div>
 
     <script>
@@ -226,6 +246,12 @@
                 assistant_ph: "যেমন: আমার ঝুঁকি কেন বেশি? কী করতে পারি?",
                 assistant_thinking: "ভাবছে...",
                 assistant_off: "ℹ️ AI সহকারী চালু করতে পরিবেশে ANTHROPIC_API_KEY সেট করুন।",
+                patient_label: "👤 রোগী আইডি (ঐচ্ছিক — ঝুঁকি-ট্রেন্ড ট্র্যাক করতে)",
+                trend_title: "📈 রোগীর ঝুঁকি-ট্রেন্ড",
+                analytics_title: "📊 অ্যানালিটিক্স ড্যাশবোর্ড",
+                drift_title: "📉 ডেটা-ড্রিফট মনিটরিং",
+                drift_desc: "প্রশিক্ষণ ডেটার তুলনায় সাম্প্রতিক ইনপুটের পরিবর্তন (PSI)। PSI < 0.1 স্থিতিশীল · 0.1–0.25 সামান্য · > 0.25 উল্লেখযোগ্য।",
+                no_data: "পর্যাপ্ত ডেটা নেই।",
             },
             en: {
                 subtitle: "Disease risk prediction with machine learning",
@@ -248,6 +274,12 @@
                 assistant_ph: "e.g. Why is my risk high? What can I do?",
                 assistant_thinking: "Thinking...",
                 assistant_off: "ℹ️ Set ANTHROPIC_API_KEY in the environment to enable the AI assistant.",
+                patient_label: "👤 Patient ID (optional — to track risk trend)",
+                trend_title: "📈 Patient Risk Trend",
+                analytics_title: "📊 Analytics Dashboard",
+                drift_title: "📉 Data Drift Monitoring",
+                drift_desc: "Shift in recent inputs vs training data (PSI). PSI < 0.1 stable · 0.1–0.25 minor · > 0.25 significant.",
+                no_data: "Not enough data.",
             }
         };
         let lang = 'bn';
@@ -385,6 +417,8 @@
         async function runPrediction(scroll) {
             const payload = { disease: document.getElementById('disease').value };
             new FormData(form).forEach((v, k) => payload[k] = parseFloat(v));
+            const pid = document.getElementById('patient_id').value.trim();
+            if (pid) payload.patient_id = pid;
             try {
                 const res = await fetch('/api/predict', {
                     method: 'POST',
@@ -396,8 +430,64 @@
                 lastData = data;
                 renderResult(data);
                 resultDiv.style.display = 'block';
+                if (pid) loadTrend(pid, payload.disease); else document.getElementById('trend-panel').style.display = 'none';
                 if (scroll) resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
             } catch (err) { if (scroll) alert(err.message); }
+        }
+
+        // ---------------- রোগীর ঝুঁকি-ট্রেন্ড (inline SVG) ----------------
+        async function loadTrend(pid, disease) {
+            const panel = document.getElementById('trend-panel');
+            const data = await (await fetch(`/api/patient/${encodeURIComponent(pid)}/trend?disease=${disease}`)).json();
+            if (data.length < 2) { panel.style.display = 'none'; return; }
+            panel.style.display = 'block';
+            const W = 600, H = 160, pad = 30;
+            const pts = data.map(d => d.probability_percent);
+            const n = pts.length;
+            const x = i => pad + (W - 2 * pad) * (n === 1 ? 0.5 : i / (n - 1));
+            const y = v => pad + (H - 2 * pad) * (1 - v / 100);
+            let path = pts.map((v, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+            let dots = pts.map((v, i) =>
+                `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="${colorFor(v / 100)}"></circle>` +
+                `<text x="${x(i).toFixed(1)}" y="${(y(v) - 9).toFixed(1)}" font-size="11" fill="var(--text)" text-anchor="middle">${v}%</text>`
+            ).join('');
+            document.getElementById('trend-chart').innerHTML =
+                `<svg viewBox="0 0 ${W} ${H}" style="width:100%; height:auto;">` +
+                `<line x1="${pad}" y1="${H - pad}" x2="${W - pad}" y2="${H - pad}" stroke="var(--border)"></line>` +
+                `<line x1="${pad}" y1="${pad}" x2="${pad}" y2="${H - pad}" stroke="var(--border)"></line>` +
+                `<path d="${path}" fill="none" stroke="var(--primary)" stroke-width="2.5"></path>${dots}</svg>` +
+                `<p class="hist-meta">${n} ${lang === 'bn' ? 'টি ভিজিট' : 'visits'}</p>`;
+        }
+
+        // ---------------- অ্যানালিটিক্স ড্যাশবোর্ড ----------------
+        function toggleAnalytics() {
+            const card = document.getElementById('analytics-card');
+            const show = card.style.display === 'none';
+            card.style.display = show ? 'block' : 'none';
+            if (show) loadAnalytics();
+        }
+        async function loadAnalytics() {
+            const sum = await (await fetch('/api/analytics/summary')).json();
+            const sumEl = document.getElementById('analytics-summary');
+            if (!sum.total) { sumEl.innerHTML = `<p class="hist-meta">${I18N[lang].no_data}</p>`; }
+            else {
+                let html = `<div class="summary-row"><span>${lang === 'bn' ? 'মোট প্রেডিকশন' : 'Total predictions'}</span><strong>${sum.total}</strong></div>`;
+                for (const [d, s] of Object.entries(sum.by_disease)) {
+                    const name = lang === 'bn' ? s.name_bn : d;
+                    html += `<div class="summary-row"><span>${name} (${s.count})</span>` +
+                        `<span class="pill" style="background:${colorFor(s.avg_probability_percent / 100)}">${lang === 'bn' ? 'গড়' : 'avg'} ${s.avg_probability_percent}%</span></div>`;
+                }
+                sumEl.innerHTML = html;
+            }
+            const drift = await (await fetch('/api/analytics/drift')).json();
+            const dEl = document.getElementById('analytics-drift');
+            if (drift.status !== 'ok') { dEl.innerHTML = `<p class="hist-meta">${drift.message || I18N[lang].no_data}</p>`; return; }
+            const colors = { stable: '#16a34a', minor: '#ca8a04', significant: '#dc2626' };
+            const sorted = Object.entries(drift.features).sort((a, b) => b[1].psi - a[1].psi);
+            dEl.innerHTML = sorted.map(([f, v]) =>
+                `<div class="summary-row"><span>${f}</span>` +
+                `<span class="pill" style="background:${colors[v.level]}">PSI ${v.psi} · ${v.level}</span></div>`
+            ).join('');
         }
 
         form.addEventListener('submit', async (e) => {

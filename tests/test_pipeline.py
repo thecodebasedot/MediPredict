@@ -133,6 +133,59 @@ def test_assistant_offline():
         assistant.ask("")
 
 
+def _full_features(glucose=120):
+    return {n: float(glucose if n == "glucose" else
+                     {"smoking": 0, "family_history": 0, "physical_activity": 5}.get(n, 90))
+            for n in config.FEATURE_NAMES}
+
+
+def test_patient_trend(tmp_path, monkeypatch):
+    """রোগীভিত্তিক সময়ক্রমিক ট্রেন্ড সঠিক ক্রমে আসে।"""
+    from src import history
+
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "h.db")
+    base = {"disease": "diabetes", "disease_name": "ডায়াবেটিস",
+            "probability_percent": 90.0, "risk_level": "উচ্চ ঝুঁকি"}
+    history.save_prediction(base, {"glucose": 200}, patient_id="P1")
+    history.save_prediction({**base, "probability_percent": 70.0}, {"glucose": 150}, patient_id="P1")
+    history.save_prediction(base, {"glucose": 180}, patient_id="P2")
+
+    trend = history.get_patient_trend("P1", disease="diabetes")
+    assert [t["probability_percent"] for t in trend] == [90.0, 70.0]  # ক্রমানুসারে
+    patients = {p["patient_id"]: p["count"] for p in history.list_patients()}
+    assert patients == {"P1": 2, "P2": 1}
+
+
+def test_analytics_and_drift(tmp_path, monkeypatch):
+    """সমষ্টিগত সারাংশ ও PSI ড্রিফট।"""
+    from src import history, analytics
+
+    monkeypatch.setattr(history, "DB_PATH", tmp_path / "h.db")
+    base = {"disease": "diabetes", "disease_name": "ডায়াবেটিস",
+            "probability_percent": 80.0, "risk_level": "উচ্চ ঝুঁকি"}
+    for g in range(60, 75):  # ১৫টি রেকর্ড, পূর্ণ ফিচারসহ
+        history.save_prediction(base, _full_features(glucose=g * 3))
+
+    s = analytics.summary()
+    assert s["total"] == 15
+    assert s["by_disease"]["diabetes"]["count"] == 15
+
+    d = analytics.drift(min_samples=5)
+    assert d["status"] == "ok"
+    assert "glucose" in d["features"]
+
+
+def test_api_security(monkeypatch):
+    """API key সেট থাকলে /api/* সুরক্ষিত, health উন্মুক্ত।"""
+    import app.app as appmod
+
+    monkeypatch.setattr(appmod, "API_KEY", "secret")
+    c = appmod.app.test_client()
+    assert c.get("/api/diseases").status_code == 401
+    assert c.get("/api/diseases", headers={"X-API-Key": "secret"}).status_code == 200
+    assert c.get("/api/health").status_code == 200  # healthcheck সবসময় উন্মুক্ত
+
+
 def test_disease_config():
     """রোগ কনফিগ ও ওজনের বৈধতা।"""
     assert config.DEFAULT_DISEASE in config.DISEASES

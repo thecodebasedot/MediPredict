@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import sys
+import time
+from collections import defaultdict, deque
 from pathlib import Path
 
 import pandas as pd
@@ -18,12 +21,40 @@ from flask import Flask, jsonify, render_template, request
 # প্যাকেজ ইম্পোর্ট নিশ্চিত করতে প্রজেক্ট রুট পাথে যোগ করা হয়
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from src import analytics  # noqa: E402
 from src import assistant  # noqa: E402
 from src import config  # noqa: E402
 from src import history  # noqa: E402
 from src.predict import get_predictor  # noqa: E402
 
 app = Flask(__name__)
+
+# ---------------------------------------------------------------------------
+# নিরাপত্তা (ঐচ্ছিক, পরিবেশ ভেরিয়েবল দিয়ে সক্রিয়)
+#   MEDIPREDICT_API_KEY    — সেট থাকলে /api/* এ X-API-Key হেডার আবশ্যক
+#   MEDIPREDICT_RATE_LIMIT — সেট থাকলে প্রতি IP প্রতি মিনিটে সর্বোচ্চ অনুরোধ
+# ---------------------------------------------------------------------------
+API_KEY = os.environ.get("MEDIPREDICT_API_KEY")
+RATE_LIMIT = int(os.environ.get("MEDIPREDICT_RATE_LIMIT", "0"))
+_hits: dict[str, deque] = defaultdict(deque)
+
+
+@app.before_request
+def _guard():
+    # শুধু /api/* সুরক্ষিত; healthcheck উন্মুক্ত রাখা হয়
+    if not request.path.startswith("/api/") or request.path == "/api/health":
+        return None
+    if API_KEY and request.headers.get("X-API-Key") != API_KEY:
+        return jsonify({"error": "অননুমোদিত — বৈধ X-API-Key দরকার।"}), 401
+    if RATE_LIMIT > 0:
+        now = time.time()
+        dq = _hits[request.remote_addr or "?"]
+        while dq and dq[0] < now - 60:
+            dq.popleft()
+        if len(dq) >= RATE_LIMIT:
+            return jsonify({"error": "অনেক বেশি অনুরোধ — কিছুক্ষণ পরে চেষ্টা করুন।"}), 429
+        dq.append(now)
+    return None
 
 
 def _read_features(data: dict) -> dict:
@@ -69,11 +100,36 @@ def api_predict():
 
     # হিস্টোরিতে সংরক্ষণ (ব্যর্থ হলে পূর্বাভাস তবু রিটার্ন হয়)
     try:
-        history.save_prediction(result, features)
+        history.save_prediction(result, features, patient_id=str(data.get("patient_id", "")))
     except Exception:
         pass
 
     return jsonify(result)
+
+
+@app.route("/api/patients")
+def api_patients():
+    """রোগীভিত্তিক সারাংশের তালিকা।"""
+    return jsonify(history.list_patients())
+
+
+@app.route("/api/patient/<patient_id>/trend")
+def api_patient_trend(patient_id):
+    """একজন রোগীর সময়ক্রমিক ঝুঁকি-ট্রেন্ড।"""
+    disease = request.args.get("disease")
+    return jsonify(history.get_patient_trend(patient_id, disease=disease))
+
+
+@app.route("/api/analytics/summary")
+def api_analytics_summary():
+    """সব প্রেডিকশনের সমষ্টিগত সারাংশ।"""
+    return jsonify(analytics.summary())
+
+
+@app.route("/api/analytics/drift")
+def api_analytics_drift():
+    """ইনপুট ডেটা-ড্রিফট (PSI)।"""
+    return jsonify(analytics.drift())
 
 
 @app.route("/api/history")
@@ -164,7 +220,7 @@ def api_assistant():
 
 @app.route("/api/health")
 def health():
-    return jsonify({"status": "ok", "version": "3.0.0"})
+    return jsonify({"status": "ok", "version": "4.0.0"})
 
 
 if __name__ == "__main__":
